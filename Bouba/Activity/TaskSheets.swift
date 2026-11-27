@@ -56,11 +56,11 @@ struct TaskDetailSheet: View {
                         Text(task.title).font(.allo(26, .bold))
                         Text("Daily at \(task.timeString)")
                             .font(.alloSubtext(17))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.textSecondary)
                         Label(task.isTimeSensitive ? "Time sensitive" : "Flexible timing",
                               systemImage: task.isTimeSensitive ? "clock.badge.exclamationmark.fill" : "clock")
                             .font(.allo(15, .semibold))
-                            .foregroundStyle(task.isTimeSensitive ? Color.boubaOrange : Color.secondary)
+                            .foregroundStyle(task.isTimeSensitive ? Color.boubaOrangeText : Color.secondary)
                     }
                 }
 
@@ -128,7 +128,7 @@ struct CompletionRow: View {
                 Text("\(completion.by) · \(completion.date.relativeDay), \(completion.date.timeString)")
                     .font(.allo(15, .semibold))
                 if let option = completion.option {
-                    Text(option).font(.alloSubtext(16)).foregroundStyle(.secondary)
+                    Text(option).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
                 }
                 if !completion.note.isEmpty {
                     Text(completion.note).font(.allo(14))
@@ -153,6 +153,7 @@ struct TaskEditorSheet: View {
 
     @State private var task: CareTask
     @State private var time: Date
+    @State private var confirmDelete = false
     let isNew: Bool
     var onDelete: (() -> Void)? = nil
 
@@ -195,9 +196,9 @@ struct TaskEditorSheet: View {
                 }
 
                 Section("Details") {
-                    TextField("Name", text: $task.title)
+                    TextField("Name", text: $task.title).font(.alloInput)
                     DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
-                    TextField("Amount (e.g. 1 cup, 30 min)", text: $task.amount)
+                    TextField("Amount (e.g. 1 cup, 30 min)", text: $task.amount).font(.alloInput)
                     Toggle(isOn: $task.isTimeSensitive) {
                         Label("Time sensitive", systemImage: "clock.badge.exclamationmark")
                     }
@@ -205,16 +206,24 @@ struct TaskEditorSheet: View {
                 }
 
                 Section("Instructions") {
-                    TextField("How should this be done?", text: $task.instructions, axis: .vertical)
+                    TextField("How should this be done?", text: $task.instructions, axis: .vertical).font(.alloInput)
                         .lineLimit(3...8)
                 }
 
                 if !isNew {
                     Section {
                         Button("Delete task", role: .destructive) {
-                            store.deleteTask(task.id)
-                            dismiss()
-                            onDelete?()
+                            confirmDelete = true
+                        }
+                        .confirmationDialog("Delete \u{201C}\(task.title)\u{201D}?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                            Button("Delete task", role: .destructive) {
+                                store.deleteTask(task.id)
+                                dismiss()
+                                onDelete?()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Its history will be removed too. This can\u{2019}t be undone.")
                         }
                     }
                 }
@@ -234,43 +243,6 @@ struct TaskEditorSheet: View {
                         dismiss()
                     }
                     .disabled(task.title.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Rank tasks
-
-struct ReorderSheet: View {
-    @Environment(AppStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(store.pet.tasks) { task in
-                        HStack(spacing: 12) {
-                            IconTile(kind: task.kind, size: 36)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(task.title).font(.allo(16, .semibold))
-                                Text(task.timeString).font(.alloSubtext(15)).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .onMove { store.moveTasks(from: $0, to: $1) }
-                } footer: {
-                    Text("Drag to set the order of tasks that share the same time.")
-                }
-            }
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("Rank tasks")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", systemImage: "checkmark") { dismiss() }
                 }
             }
         }
@@ -325,7 +297,7 @@ struct CompletionDetailsSheet: View {
                                     Image(systemName: "camera.fill").font(.system(size: 28))
                                     Text("Add a photo").font(.allo(15, .medium))
                                 }
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.textSecondary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 140)
                                 .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -336,7 +308,7 @@ struct CompletionDetailsSheet: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Note").font(.allo(17, .semibold))
-                        TextField("Anything worth sharing?", text: $note, axis: .vertical)
+                        TextField("Anything worth sharing?", text: $note, axis: .vertical).font(.alloInput)
                             .lineLimit(2...5)
                             .fieldStyle()
                     }

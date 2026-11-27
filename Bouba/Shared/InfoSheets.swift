@@ -22,7 +22,7 @@ struct EmergencySheet: View {
                             Text("Emergency info").font(.allo(26, .bold))
                             Text("If something's wrong with \(pet.name)")
                                 .font(.alloSubtext(17))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.textSecondary)
                         }
                     }
 
@@ -33,10 +33,10 @@ struct EmergencySheet: View {
                         HStack(alignment: .top, spacing: 12) {
                             Image(systemName: pet.vet.permission.symbol)
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(Color.boubaGreen)
+                                .foregroundStyle(Color.boubaGreenText)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(pet.vet.permission.label).font(.allo(16, .semibold))
-                                Text(pet.vet.permission.detail).font(.alloSubtext(16)).foregroundStyle(.secondary)
+                                Text(pet.vet.permission.detail).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
                             }
                         }
                         .padding(12)
@@ -46,12 +46,12 @@ struct EmergencySheet: View {
                         if let url = telURL(pet.vet.phone), !pet.vet.phone.isEmpty {
                             Link(destination: url) {
                                 Label("Call \(pet.vet.phone)", systemImage: "phone.fill")
-                                    .font(.allo(17, .semibold))
+                                    .font(.allo(19, .semibold))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 6)
                             }
                             .buttonStyle(.glassProminent)
-                            .tint(Color.red)
+                            .tint(Color.dangerText)
                             .controlSize(.large)
                         }
                     }
@@ -65,16 +65,19 @@ struct EmergencySheet: View {
                                         Text(contact.name).font(.allo(16, .semibold))
                                         Text("\(contact.relation) · \(contact.phone)")
                                             .font(.alloSubtext(16))
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(Color.textSecondary)
                                     }
                                     Spacer()
                                     if let url = telURL(contact.phone) {
                                         Link(destination: url) {
                                             Image(systemName: "phone.fill")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .frame(width: 40, height: 40)
+                                                .font(.system(size: 14, weight: .semibold))
+                                                .foregroundStyle(Color.textSecondary)
+                                                .frame(width: 44, height: 44)
+                                                .contentShape(Rectangle())
                                         }
-                                        .buttonStyle(.glass)
+                                        .buttonStyle(.borderless)
+                                        .accessibilityLabel("Call \(contact.name)")
                                     }
                                 }
                             }
@@ -90,7 +93,7 @@ struct EmergencySheet: View {
                     if !pet.mustNotEat.isEmpty {
                         InfoCard(title: "Must not eat", symbol: "nosign", tint: .red) {
                             FlowLayout {
-                                ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .red, symbol: "xmark") }
+                                ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .dangerText, symbol: "xmark") }
                             }
                         }
                     }
@@ -127,10 +130,10 @@ struct NotificationsSheet: View {
                                 .background(n.color, in: Circle())
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(n.title).font(.allo(16, .semibold))
-                                Text(n.body).font(.alloSubtext(16)).foregroundStyle(.secondary)
+                                Text(n.body).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
                                 Text("\(n.date.relativeDay) · \(n.date.timeString)")
                                     .font(.alloSubtext(15))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(Color.textSecondary)
                             }
                         }
                         .padding(.vertical, 4)

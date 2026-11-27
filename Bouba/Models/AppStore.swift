@@ -18,6 +18,9 @@ final class AppStore {
     }
 
     var hasOnboarded = false
+    /// Meet the pet is shown from the root during onboarding, so finishing can swap
+    /// to the app underneath and slide the modal down to reveal it.
+    var showingMeet = false
     var role: Role = .owner
     var pets: [Pet]
     var selectedPetID: UUID
@@ -107,7 +110,9 @@ final class AppStore {
             if let i = pet.tasks.firstIndex(where: { $0.id == task.id }) {
                 pet.tasks[i] = task
             } else {
-                pet.tasks.append(task)
+                // New tasks slot in by time; after that the owner's drag order wins.
+                let i = pet.tasks.firstIndex { $0.minutesOfDay > task.minutesOfDay } ?? pet.tasks.endIndex
+                pet.tasks.insert(task, at: i)
             }
         }
     }
@@ -158,6 +163,9 @@ final class AppStore {
     }
 
     func addPet(_ pet: Pet) {
+        var pet = pet
+        // Start in time order; the owner can drag tasks around from there.
+        pet.tasks = pet.tasks.byTime
         pets.append(pet)
         selectedPetID = pet.id
         selectedDate = Date().startOfDay
@@ -244,7 +252,7 @@ extension AppStore {
         return Pet(
             name: "Felix", species: .dog, breed: "Goldendoodle", age: 8, size: .medium,
             color: .boubaOrange,
-            tasks: tasks,
+            tasks: tasks.byTime,
             notes: [
                 InstructionNote(title: "Personality", body: "Easy-going and loves everyone. A little shy around big dogs at first.", symbol: "face.smiling.inverse"),
                 InstructionNote(title: "Bedtime", body: "Sleeps in his bed in the living room. Lights out around 10 PM.", symbol: "moon.fill"),
@@ -286,7 +294,7 @@ extension AppStore {
         return Pet(
             name: "Mochi", species: .cat, breed: "Tabby", age: 4, size: .small,
             color: .teal,
-            tasks: tasks,
+            tasks: tasks.byTime,
             notes: [InstructionNote(title: "Feeding", body: "Automatic feeder dispenses at 7 AM and 6 PM. Just make sure it isn't jammed.", symbol: "fork.knife")],
             mustNotEat: ["Lilies (toxic!)", "Milk"],
             home: HomeAccess(address: "27-14 Jackson Ave, Apt 5C\nLong Island City, NY", entry: "Lockbox on the front gate", code: "4821"),
@@ -299,12 +307,21 @@ extension AppStore {
     static func makeNotifications() -> [AppNotification] {
         let now = Date()
         return [
-            AppNotification(date: now.adding(minutes: -35), symbol: "fork.knife", color: .boubaOrange,
+            AppNotification(date: now.adding(minutes: -35), symbol: "fork.knife", color: .petOrange,
                             title: "Andrew completed Breakfast", body: "Felix ate it all."),
             AppNotification(date: now.adding(minutes: -60 * 18), symbol: "camera.fill", color: .pink,
                             title: "Andrew shared 2 photos", body: "Felix made a new best friend at the dog run!"),
             AppNotification(date: now.adding(minutes: -60 * 26), symbol: "person.badge.plus", color: .blue,
                             title: "Andrew joined Felix's care team", body: "Access through \(Date().adding(days: 3).shortDay)."),
         ]
+    }
+}
+
+extension Array where Element == CareTask {
+    /// Earliest first. Tasks at the same time keep their order.
+    var byTime: [CareTask] {
+        enumerated()
+            .sorted { ($0.element.minutesOfDay, $0.offset) < ($1.element.minutesOfDay, $1.offset) }
+            .map(\.element)
     }
 }

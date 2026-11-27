@@ -29,8 +29,9 @@ struct PetProfileView: View {
                     if !pet.mustNotEat.isEmpty {
                         InfoCard(title: "Must not eat", symbol: "nosign", tint: .red) {
                             FlowLayout {
-                                ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .red, symbol: "xmark") }
+                                ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .dangerText, symbol: "xmark") }
                             }
+                            .padding(.leading, InfoCardMetrics.textInset)
                         }
                     }
 
@@ -98,7 +99,7 @@ struct PetProfileView: View {
             .sheet(isPresented: $showInvite) { InviteCaretakerSheet().solidSheet() }
             .sheet(item: $editingCaretaker) { c in InviteCaretakerSheet(existing: c).solidSheet() }
             .fullScreenCover(isPresented: $showMeet) {
-                MeetThePetView(onFinish: { showMeet = false })
+                NavigationStack { MeetThePetView(onFinish: { showMeet = false }) }
             }
         }
     }
@@ -114,7 +115,7 @@ struct PetProfileView: View {
                 Text(pet.name).font(.allo(34, .bold))
                 Text(pet.breed.isEmpty ? pet.species.label : pet.breed)
                     .font(.alloSubtext(18))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
             }
             HStack(spacing: 10) {
                 fact("\(pet.age)", "years old")
@@ -129,32 +130,33 @@ struct PetProfileView: View {
     private func fact(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.allo(20, .bold))
-            Text(label).font(.alloSubtext(15)).foregroundStyle(.secondary)
+            Text(label).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .layeredShadow(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func caretakersCard(_ pet: Pet) -> some View {
         InfoCard(title: "Care team", symbol: "person.2.fill", tint: .purple) {
-            HStack(spacing: 12) {
-                InitialsAvatar(name: store.ownerName, color: .boubaOrange, size: 40)
+            HStack(spacing: InfoCardMetrics.gap) {
+                InitialsAvatar(name: store.ownerName, color: .boubaOrange, size: InfoCardMetrics.iconColumn)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(store.ownerName) (you)").font(.allo(16, .semibold))
-                    Text("Owner").font(.alloSubtext(15)).foregroundStyle(.secondary)
+                    Text("Owner").font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
             }
             ForEach(pet.caretakers) { c in
                 Button { editingCaretaker = c } label: {
-                    HStack(spacing: 12) {
-                        InitialsAvatar(name: c.name, color: c.color, size: 40)
+                    HStack(spacing: InfoCardMetrics.gap) {
+                        InitialsAvatar(name: c.name, color: c.color, size: InfoCardMetrics.iconColumn)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(c.name).font(.allo(16, .semibold))
                             Text("\(c.role.label) · \(c.accessSummary)")
                                 .font(.alloSubtext(15))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.textSecondary)
                         }
                         Spacer()
                         StatusBadge(status: c.status)
@@ -168,7 +170,7 @@ struct PetProfileView: View {
             }
             Button { showInvite = true } label: {
                 Label("Invite a caretaker", systemImage: "person.badge.plus")
-                    .font(.allo(16, .semibold))
+                    .font(.allo(18, .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
             }
@@ -211,11 +213,11 @@ struct EditPetSheet: View {
                 .listRowBackground(Color.clear)
 
                 Section("Basics") {
-                    TextField("Name", text: $draft.name)
+                    TextField("Name", text: $draft.name).font(.alloInput)
                     Picker("Species", selection: $draft.species) {
                         ForEach(Species.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
                     }
-                    TextField("Breed", text: $draft.breed)
+                    TextField("Breed", text: $draft.breed).font(.alloInput)
                     Stepper("Age: \(draft.age) yr\(draft.age == 1 ? "" : "s")", value: $draft.age, in: 0...30)
                     Picker("Size", selection: $draft.size) {
                         ForEach(PetSize.allCases) { Text($0.label).tag($0) }
@@ -227,8 +229,8 @@ struct EditPetSheet: View {
                     ForEach($draft.notes) { $note in
                         VStack(alignment: .leading, spacing: 4) {
                             TextField("Title", text: $note.title).font(.allo(16, .semibold))
-                            TextField("Details", text: $note.body, axis: .vertical)
-                                .foregroundStyle(.secondary)
+                            TextField("Details", text: $note.body, axis: .vertical).font(.alloInput)
+                                .foregroundStyle(Color.textSecondary)
                         }
                     }
                     .onDelete { draft.notes.remove(atOffsets: $0) }
@@ -241,7 +243,7 @@ struct EditPetSheet: View {
                     if !draft.mustNotEat.isEmpty {
                         FlowLayout {
                             ForEach(draft.mustNotEat, id: \.self) { item in
-                                Chip(label: item, symbol: "xmark", isSelected: true, tint: .red) {
+                                Chip(label: item, symbol: "xmark", isSelected: true, tint: .dangerText) {
                                     withAnimation { draft.mustNotEat.removeAll { $0 == item } }
                                 }
                             }
@@ -249,7 +251,7 @@ struct EditPetSheet: View {
                         .padding(.vertical, 4)
                     }
                     HStack {
-                        TextField("Add a food", text: $newAvoid)
+                        TextField("Add a food", text: $newAvoid).font(.alloInput)
                             .onSubmit(addAvoid)
                         Button("Add", action: addAvoid)
                             .disabled(newAvoid.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -257,23 +259,23 @@ struct EditPetSheet: View {
                 }
 
                 Section("Home access") {
-                    TextField("Address", text: $draft.home.address, axis: .vertical)
-                    TextField("How to get in", text: $draft.home.entry)
-                    TextField("Door or lockbox code", text: $draft.home.code)
-                    TextField("Wi-Fi name", text: $draft.home.wifiName)
-                    TextField("Wi-Fi password", text: $draft.home.wifiPassword)
-                    TextField("Other notes", text: $draft.home.notes, axis: .vertical)
+                    TextField("Address", text: $draft.home.address, axis: .vertical).font(.alloInput)
+                    TextField("How to get in", text: $draft.home.entry).font(.alloInput)
+                    TextField("Door or lockbox code", text: $draft.home.code).font(.alloInput)
+                    TextField("Wi-Fi name", text: $draft.home.wifiName).font(.alloInput)
+                    TextField("Wi-Fi password", text: $draft.home.wifiPassword).font(.alloInput)
+                    TextField("Other notes", text: $draft.home.notes, axis: .vertical).font(.alloInput)
                 }
 
                 Section {
-                    TextField("Vet clinic", text: $draft.vet.clinic)
-                    TextField("Vet phone", text: $draft.vet.phone)
+                    TextField("Vet clinic", text: $draft.vet.clinic).font(.alloInput)
+                    TextField("Vet phone", text: $draft.vet.phone).font(.alloInput)
                         .keyboardType(.phonePad)
-                    TextField("Vet address", text: $draft.vet.address)
+                    TextField("Vet address", text: $draft.vet.address).font(.alloInput)
                     Picker("If something's wrong", selection: $draft.vet.permission) {
                         ForEach(VetPermission.allCases) { Text($0.label).tag($0) }
                     }
-                    TextField("Medical notes", text: $draft.medical, axis: .vertical)
+                    TextField("Medical notes", text: $draft.medical, axis: .vertical).font(.alloInput)
                 } header: {
                     Text("Vet & emergency")
                 } footer: {

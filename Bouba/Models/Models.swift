@@ -97,7 +97,7 @@ enum TaskKind: String, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
-        case .food: return .boubaOrange
+        case .food: return .petOrange
         case .water: return Color(red: 0.20, green: 0.58, blue: 1.0)
         case .medication: return Color(red: 0.95, green: 0.30, blue: 0.40)
         case .bathroom: return Color(red: 0.90, green: 0.66, blue: 0.10)

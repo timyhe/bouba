@@ -13,7 +13,6 @@ struct BoubaApp: App {
         WindowGroup {
             RootView()
                 .environment(store)
-                .font(.allo(17))
                 // Buttons and icons default to black; orange is opted into where it marks an action or selection.
                 .tint(Color.primary)
         }
@@ -22,8 +21,10 @@ struct BoubaApp: App {
 
 struct RootView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        let _ = AlloFont.setContentSize(dynamicTypeSize)
         ZStack {
             if store.hasOnboarded {
                 MainTabView()
@@ -34,6 +35,14 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: store.hasOnboarded)
+        .fullScreenCover(isPresented: Bindable(store).showingMeet) {
+            NavigationStack {
+                MeetThePetView(onFinish: { store.showingMeet = false })
+            }
+        }
+        .font(.allo(17))
+        // Allo is built at a fixed size per text-size setting, so rebuild the tree when it changes.
+        .id(dynamicTypeSize)
     }
 }
 
@@ -55,7 +64,7 @@ struct MainTabView: View {
                 MeView().tint(Color.primary)
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabBarMinimizeBehavior(.never)
         // Orange marks the selected tab; each tab's content resets to black above.
         .tint(Color.boubaOrange)
     }

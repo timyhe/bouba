@@ -19,8 +19,19 @@ struct WelcomeView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 Spacer()
-                hero
+                OrbitHero()
                 Spacer()
+
+                // Title and tagline sit right on top of the button.
+                VStack(spacing: 8) {
+                    Text("Bouba").font(.allo(46, .bold))
+                    Text("Everything your pet needs,\nin good hands.")
+                        .font(.alloSubtext(20))
+                        .foregroundStyle(Color.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 28)
 
                 VStack(spacing: 12) {
                     PrimaryButton(title: "Continue") {
@@ -29,7 +40,7 @@ struct WelcomeView: View {
 
                     Text("By continuing you agree to Bouba's Terms & Privacy Policy.")
                         .font(.alloSubtext(14))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.top, 4)
                 }
@@ -49,32 +60,81 @@ struct WelcomeView: View {
         }
     }
 
-    private var hero: some View {
-        VStack(spacing: 22) {
-            ZStack {
-                bubble("cat.fill", color: .teal, size: 84).offset(x: -78, y: 26)
-                bubble("tennisball.fill", color: Color(red: 0.56, green: 0.40, blue: 0.95), size: 60).offset(x: 84, y: -34)
-                bubble("dog.fill", color: .boubaOrange, size: 128)
-            }
-            .frame(height: 160)
+}
 
-            VStack(spacing: 8) {
-                Text("Bouba").font(.allo(54, .bold))
-                Text("Everything your pet's people need,\nall in one place.")
-                    .font(.alloSubtext(20))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-        }
+// MARK: - Splash hero: icon circles orbiting the dog
+
+struct OrbitHero: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Orbiter {
+        let symbol: String
+        let color: Color
+        let size: CGFloat
+        let radius: CGFloat
+        let phase: Double   // starting angle, radians
+        let speed: Double   // radians per second; negative runs the other way
     }
 
-    private func bubble(_ symbol: String, color: Color, size: CGFloat) -> some View {
+    private static let purple = Color(red: 0.56, green: 0.40, blue: 0.95)
+
+    // Inner ring drifts one way, outer ring the other.
+    private let orbiters: [Orbiter] = {
+        let inner: [(String, Color)] = [
+            ("cat.fill", .teal),
+            ("tennisball.fill", purple),
+            ("fish.fill", .blue),
+            ("heart.fill", .pink),
+        ]
+        let outer: [(String, Color)] = [
+            ("bird.fill", .yellow),
+            ("pawprint.fill", .boubaOrange),
+            ("hare.fill", .mint),
+            ("carrot.fill", .orange),
+            ("tortoise.fill", .green),
+            ("drop.fill", .cyan),
+            ("leaf.fill", .indigo),
+        ]
+        return inner.enumerated().map { i, item in
+            Orbiter(symbol: item.0, color: item.1, size: 50, radius: 104,
+                    phase: Double(i) / Double(inner.count) * 2 * .pi, speed: 0.22)
+        } + outer.enumerated().map { i, item in
+            Orbiter(symbol: item.0, color: item.1, size: 42, radius: 162,
+                    phase: (Double(i) + 0.5) / Double(outer.count) * 2 * .pi, speed: -0.14)
+        }
+    }()
+
+    var body: some View {
+        TimelineView(.animation(paused: reduceMotion)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            ZStack {
+                ForEach([104.0, 162.0], id: \.self) { r in
+                    Circle()
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        .frame(width: r * 2, height: r * 2)
+                }
+
+                ForEach(orbiters.indices, id: \.self) { i in
+                    let o = orbiters[i]
+                    let angle = o.phase + t * o.speed
+                    Self.bubble(o.symbol, color: o.color, size: o.size)
+                        .offset(x: cos(angle) * o.radius, y: sin(angle) * o.radius)
+                }
+
+                Self.bubble("dog.fill", color: .boubaOrange, size: 128)
+            }
+        }
+        .frame(height: 370)
+        .accessibilityHidden(true)
+    }
+
+    static func bubble(_ symbol: String, color: Color, size: CGFloat) -> some View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.44, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(color, in: Circle())
-            .overlay(Circle().strokeBorder(.white, lineWidth: 4))
+            .overlay(Circle().strokeBorder(.white, lineWidth: size > 60 ? 4 : 3))
     }
 }
 
@@ -106,6 +166,7 @@ struct RoleChoiceView: View {
             } label: {
                 Text("Just exploring? Try a sample pet")
                     .font(.allo(15, .semibold))
+                    .foregroundStyle(Color.textSecondary)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderless)
@@ -118,14 +179,15 @@ struct RoleChoiceView: View {
 
     private func choice(symbol: String, title: String, detail: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
                 Image(systemName: symbol)
                     .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(Color.boubaOrange)
+                    .foregroundStyle(Color.boubaOrangeText)
                     .frame(width: 36)
+                    .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.allo(19, .semibold)).foregroundStyle(.primary)
-                    Text(detail).font(.alloSubtext(16)).foregroundStyle(.secondary)
+                    Text(detail).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
                         .multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)

@@ -1,17 +1,19 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Card container (light gray fill, rounded, no border)
+// MARK: - Card container (white fill, layered shadow, rounded)
 
 struct CardStyle: ViewModifier {
     var padding: CGFloat = 16
     var radius: CGFloat = 24
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.cardFill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .background(Color(.systemBackground), in: shape)
+            .layeredShadow(shape)
     }
 }
 
@@ -26,6 +28,8 @@ extension View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            // Outermost, so a field that sets its own font keeps it.
+            .font(.alloInput)
     }
 }
 
@@ -53,10 +57,11 @@ struct InstantSelectStyle: ButtonStyle {
 /// A quick scale bump when something becomes selected; deselected items just snap off.
 struct SelectionPop: ViewModifier {
     let isSelected: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content.keyframeAnimator(initialValue: 1.0, trigger: isSelected) { view, scale in
-            view.scaleEffect(isSelected ? scale : 1)
+            view.scaleEffect(isSelected && !reduceMotion ? scale : 1)
         } keyframes: { _ in
             // Cubic keyframes end exactly on their value; a spring's last keyframe can stop short of 1.0.
             CubicKeyframe(1.07, duration: 0.08)
@@ -74,20 +79,29 @@ extension View {
 struct PrimaryButton: View {
     let title: String
     var systemImage: String? = nil
+    /// Shows a spinner beside the title. Pair it with `.disabled` so the button can't be tapped twice.
+    var isLoading = false
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                if let systemImage { Image(systemName: systemImage) }
+                if isLoading {
+                    // Small and gray to match the disabled label beside it.
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color(.systemGray))
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                }
                 Text(title)
             }
-            .font(.allo(17, .semibold))
+            .font(.allo(19, .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         }
         .buttonStyle(.glassProminent)
-        .tint(Color.boubaOrange)
+        .tint(Color.boubaOrangeFill)
         .controlSize(.large)
     }
 }
@@ -185,7 +199,7 @@ struct Chip: View {
     let label: String
     var symbol: String? = nil
     var isSelected: Bool
-    var tint: Color = .boubaOrange
+    var tint: Color = .boubaOrangeFill
     var action: () -> Void
 
     var body: some View {
@@ -201,13 +215,14 @@ struct Chip: View {
             .background(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(Color.fieldFill), in: Capsule())
         }
         .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .sensoryFeedback(.impact(weight: .light), trigger: isSelected)
     }
 }
 
 struct Tag: View {
     let text: String
-    var color: Color = .red
+    var color: Color = .dangerText
     var symbol: String? = nil
 
     var body: some View {
@@ -249,6 +264,7 @@ struct SectionHeader<Trailing: View>: View {
     var body: some View {
         HStack {
             Text(title).font(.allo(21, .bold))
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             trailing
         }
@@ -264,6 +280,14 @@ extension SectionHeader where Trailing == EmptyView {
 
 // MARK: - Info card & rows
 
+/// Shared by the card title's colored tile and the gray row icons below it,
+/// so every line of text in an info card starts at the same edge.
+enum InfoCardMetrics {
+    static let iconColumn: CGFloat = 30
+    static let gap: CGFloat = 10
+    static var textInset: CGFloat { iconColumn + gap }
+}
+
 struct InfoCard<Content: View>: View {
     let title: String
     let symbol: String
@@ -272,11 +296,11 @@ struct InfoCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
+            HStack(spacing: InfoCardMetrics.gap) {
                 Image(systemName: symbol)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
+                    .frame(width: InfoCardMetrics.iconColumn, height: InfoCardMetrics.iconColumn)
                     .background(tint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 Text(title).font(.allo(18, .semibold))
             }
@@ -297,37 +321,52 @@ struct KeyValueRow: View {
     @State private var copied = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: InfoCardMetrics.gap) {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
-                .padding(.top, 3)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.textSecondary)
+                .frame(width: InfoCardMetrics.iconColumn, height: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(.alloSubtext(15)).foregroundStyle(.secondary)
+                Text(label).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
                 Text(secret && !revealed ? String(repeating: "•", count: max(value.count, 4)) : value)
                     .font(.allo(16, .medium))
                     .textSelection(.enabled)
             }
             Spacer(minLength: 8)
+            // Show/hide and copy sit side by side with no extra spacing; each keeps a 44pt-tall target.
+            HStack(spacing: 0) { actions }
+        }
+    }
+
+    @ViewBuilder private var actions: some View {
             if secret {
-                Button(revealed ? "Hide" : "Show") { withAnimation { revealed.toggle() } }
-                    .font(.allo(14, .semibold))
-                    .buttonStyle(.borderless)
+                // Shows the action: the open eye reveals, the crossed-out eye hides again.
+                Button { withAnimation { revealed.toggle() } } label: {
+                    Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 36, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(revealed ? "Hide \(label)" : "Show \(label)")
+                .foregroundStyle(Color.textSecondary)
             }
             if copyable {
                 Button {
                     UIPasteboard.general.string = value
                     withAnimation { copied = true }
                 } label: {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc.fill")
                         .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 36, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
+                .accessibilityLabel(copied ? "Copied \(label)" : "Copy \(label)")
+                .foregroundStyle(Color.textSecondary)
                 .sensoryFeedback(.success, trigger: copied)
             }
-        }
     }
 }
 

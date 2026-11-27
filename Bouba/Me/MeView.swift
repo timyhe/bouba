@@ -19,7 +19,7 @@ struct MeView: View {
                             Text(store.currentUserName).font(.allo(22, .bold))
                             Text(store.isOwner ? "Owner · \(store.pets.count) pets" : "Pet sitter for \(store.pets[0].name)")
                                 .font(.alloSubtext(17))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.textSecondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -58,11 +58,11 @@ struct MeView: View {
                                 PetAvatar(pet: pet, size: 38)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(pet.name).font(.allo(16, .semibold))
-                                    Text(pet.subtitle).font(.alloSubtext(15)).foregroundStyle(.secondary)
+                                    Text(pet.subtitle).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
                                 }
                                 Spacer()
                                 if pet.id == store.selectedPetID {
-                                    Image(systemName: "checkmark").foregroundStyle(Color.boubaOrange)
+                                    Image(systemName: "checkmark").foregroundStyle(Color.boubaOrangeText)
                                 }
                             }
                         }

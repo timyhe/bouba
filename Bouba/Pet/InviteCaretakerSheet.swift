@@ -56,7 +56,7 @@ struct InviteCaretakerSheet: View {
     private var form: some View {
         Form {
             Section("Who's helping?") {
-                TextField("Their name", text: $draft.name)
+                TextField("Their name", text: $draft.name).font(.alloInput)
                     .textContentType(.name)
             }
 
@@ -71,16 +71,16 @@ struct InviteCaretakerSheet: View {
                         HStack(spacing: 14) {
                             Image(systemName: role.symbol)
                                 .font(.system(size: 20))
-                                .foregroundStyle(Color.boubaOrange)
+                                .foregroundStyle(Color.boubaOrangeText)
                                 .frame(width: 30)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(role.label).font(.allo(16, .semibold))
-                                Text(role.detail).font(.alloSubtext(15)).foregroundStyle(.secondary)
+                                Text(role.detail).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
                             }
                             Spacer()
                             Image(systemName: draft.role == role ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
-                                .foregroundStyle(draft.role == role ? Color.boubaOrange : Color(.systemGray3))
+                                .foregroundStyle(draft.role == role ? Color.boubaOrangeText : Color(.systemGray3))
                         }
                         .contentShape(Rectangle())
                     }
@@ -173,7 +173,7 @@ struct InviteReadyView: View {
                 Text("Invite ready!").font(.allo(30, .bold))
                 Text("Send this link to \(caretaker.name). They'll meet \(petName) and see everything you've set up.")
                     .font(.alloSubtext(18))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -183,7 +183,7 @@ struct InviteReadyView: View {
                         .font(.allo(17, .semibold))
                     Text(caretaker.role == .temporary ? "\(caretaker.role.label) · \(caretaker.accessSummary)" : caretaker.role.label)
                         .font(.alloSubtext(15))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
                 Button {
@@ -195,6 +195,7 @@ struct InviteReadyView: View {
                         .frame(width: 40, height: 40)
                 }
                 .buttonStyle(.glass)
+                .accessibilityLabel(copied ? "Invite link copied" : "Copy invite link")
                 .sensoryFeedback(.success, trigger: copied)
             }
             .fieldStyle()
@@ -206,7 +207,7 @@ struct InviteReadyView: View {
                           subject: Text("Help care for \(petName)"),
                           message: Text(message)) {
                     Label("Share invite", systemImage: "square.and.arrow.up")
-                        .font(.allo(17, .semibold))
+                        .font(.allo(19, .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }

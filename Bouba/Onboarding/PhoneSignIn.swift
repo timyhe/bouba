@@ -28,11 +28,11 @@ struct PhoneEntryView: View {
                 Text("What's your number?").font(.allo(32, .bold))
                 Text("We'll text you a code to sign in. No passwords to remember.")
                     .font(.alloSubtext(18))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
             }
 
             HStack(spacing: 10) {
-                Text("US +1")
+                Text("🇺🇸 +1")
                     .font(.allo(20, .semibold))
                     .fieldStyle()
 
@@ -58,7 +58,7 @@ struct PhoneEntryView: View {
                                     animation: { _ in .easeInOut(duration: 0.5) }
                         }
                         if digits.isEmpty {
-                            Text("(555) 555-5555").foregroundStyle(.tertiary)
+                            Text("(555) 555-5555").foregroundStyle(Color.textSecondary)
                         }
                     }
                     .allowsHitTesting(false)
@@ -102,14 +102,9 @@ struct VerifyCodeView: View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Enter the code").font(.allo(32, .bold))
-                HStack(spacing: 4) {
-                    Text("Sent to \(phone).")
-                    Button("Edit") { path.removeLast() }
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.boubaOrange)
-                }
-                .font(.alloSubtext(18))
-                .foregroundStyle(.secondary)
+                Text("Sent to \(phone)")
+                    .font(.alloSubtext(18))
+                    .foregroundStyle(Color.textSecondary)
             }
 
             ZStack {
@@ -135,15 +130,10 @@ struct VerifyCodeView: View {
             }
 
             Group {
-                if verifying {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text("Verifying…")
-                    }
-                    .foregroundStyle(.secondary)
-                } else if secondsLeft > 0 {
+                if secondsLeft > 0 {
                     Text(resent ? "New code sent. Resend again in \(secondsLeft)s" : "Resend code in \(secondsLeft)s")
-                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.textSecondary)
                 } else {
                     Button("Resend code") {
                         resent = true
@@ -157,9 +147,16 @@ struct VerifyCodeView: View {
 
             Label("Prototype: any 6 digits will work.", systemImage: "info.circle")
                 .font(.alloSubtext(16))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.textSecondary)
 
             Spacer()
+
+            // Stays above the keyboard. The code verifies itself once all digits are in,
+            // so the button only shows progress and never needs a tap.
+            PrimaryButton(title: verifying ? "Verifying…" : "Continue", isLoading: verifying) {
+                verify()
+            }
+            .disabled(code.count < length || verifying)
         }
         .padding(24)
         .background(OnboardingBackground())
@@ -190,7 +187,6 @@ struct VerifyCodeView: View {
     private func verify() {
         guard !verifying else { return }
         verifying = true
-        focused = false
         Task {
             try? await Task.sleep(for: .seconds(0.8))
             verifying = false

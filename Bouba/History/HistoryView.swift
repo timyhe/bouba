@@ -148,7 +148,7 @@ private struct HistoryCompletionRow: View {
                     }
                 }
                 .font(.alloSubtext(16))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.textSecondary)
                 if !completion.note.isEmpty {
                     Text(completion.note).font(.allo(15))
                 }
@@ -179,7 +179,7 @@ private struct VisitRow: View {
             Text("\(Text(update.by).font(.allo(16, .semibold))) \(update.kind == .arrived ? "arrived" : "left")")
                 .font(.allo(16))
             Spacer()
-            Text(update.date.timeString).font(.alloSubtext(16)).foregroundStyle(.secondary)
+            Text(update.date.timeString).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
         }
         .padding(.vertical, 4)
     }
@@ -195,11 +195,11 @@ struct UpdateCard: View {
                 InitialsAvatar(name: update.by, color: .purple, size: 36)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(update.by).font(.allo(16, .semibold))
-                    Text(update.date.timeString).font(.alloSubtext(15)).foregroundStyle(.secondary)
+                    Text(update.date.timeString).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
                 if let mood = update.mood {
-                    Tag(text: mood, color: .boubaOrange, symbol: PetUpdate.moodSymbol(mood))
+                    Tag(text: mood, color: .boubaOrangeText, symbol: PetUpdate.moodSymbol(mood))
                 }
             }
 
@@ -251,7 +251,7 @@ struct PostUpdateSheet: View {
                                 Text("Add photos of \(store.pet.name)")
                                     .font(.allo(16, .semibold))
                             }
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.textSecondary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 180)
                             .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
