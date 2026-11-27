@@ -32,6 +32,7 @@ final class AppStore {
     var checkedInAt: Date? = nil
 
     let ownerName = "Brian"
+    let ownerPhoto: String? = "avatar-brian"
     let sitterName = "Andrew"
 
     init() {
@@ -231,9 +232,9 @@ extension AppStore {
             }
         }
 
-        let kayla = Caretaker(name: "Kayla", role: .coOwner, color: .teal, notifyOnComplete: true,
+        let kayla = Caretaker(name: "Kayla", role: .coOwner, color: .teal, photo: "avatar-kayla", notifyOnComplete: true,
                               photoFrequency: .none, canEditTasks: true)
-        let andrew = Caretaker(name: "Andrew", role: .temporary, color: .purple,
+        let andrew = Caretaker(name: "Andrew", role: .temporary, color: .purple, photo: "avatar-andrew",
                                start: today.adding(days: -1), end: today.adding(days: 3), earlyAccessDays: 3,
                                notifyOnComplete: true, photoFrequency: .daily, checkInOut: false,
                                inviteCode: "FX7K2Q")
@@ -300,7 +301,7 @@ extension AppStore {
             home: HomeAccess(address: "27-14 Jackson Ave, Apt 5C\nLong Island City, NY", entry: "Lockbox on the front gate", code: "4821"),
             vet: VetInfo(clinic: "LIC Animal Hospital", phone: "(718) 555-0142", permission: .callFirst),
             contacts: [Contact(name: "Brian", relation: "Owner", phone: "(917) 555-0101")],
-            caretakers: [Caretaker(name: "Kayla", role: .coOwner, color: .teal, canEditTasks: true)]
+            caretakers: [Caretaker(name: "Kayla", role: .coOwner, color: .teal, photo: "avatar-kayla", canEditTasks: true)]
         )
     }
 

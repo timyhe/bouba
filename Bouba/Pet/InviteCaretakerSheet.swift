@@ -81,6 +81,7 @@ struct InviteCaretakerSheet: View {
                             Image(systemName: draft.role == role ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
                                 .foregroundStyle(draft.role == role ? Color.boubaOrangeText : Color(.systemGray3))
+                                .instantSelection()
                         }
                         .contentShape(Rectangle())
                     }
@@ -196,7 +197,7 @@ struct InviteReadyView: View {
                 }
                 .buttonStyle(.glass)
                 .accessibilityLabel(copied ? "Invite link copied" : "Copy invite link")
-                .sensoryFeedback(.success, trigger: copied)
+                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: copied)
             }
             .fieldStyle()
 

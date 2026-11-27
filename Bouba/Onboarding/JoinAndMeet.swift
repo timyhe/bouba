@@ -67,7 +67,7 @@ struct JoinInviteView: View {
                 }
             }
             .disabled(code.isEmpty)
-            .sensoryFeedback(.error, trigger: invalid)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: invalid)
         }
         .padding(24)
         .background(OnboardingBackground())
@@ -145,7 +145,7 @@ struct MeetThePetView: View {
                 Text("Meet \(pet.name)").font(.allo(17, .semibold))
             }
         }
-        .sensoryFeedback(trigger: pastThreshold) { _, crossed in crossed ? .impact(weight: .medium) : nil }
+        .sensoryFeedback(trigger: pastThreshold) { _, crossed in crossed ? .impact(flexibility: .soft, intensity: 0.7) : nil }
     }
 
     // MARK: Stack

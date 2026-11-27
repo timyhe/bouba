@@ -134,8 +134,7 @@ struct PetProfileView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .layeredShadow(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func caretakersCard(_ pet: Pet) -> some View {
@@ -154,7 +153,7 @@ struct PetProfileView: View {
                         InitialsAvatar(name: c.name, color: c.color, size: InfoCardMetrics.iconColumn)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(c.name).font(.allo(16, .semibold))
-                            Text("\(c.role.label) · \(c.accessSummary)")
+                            Text(c.role.label)
                                 .font(.alloSubtext(15))
                                 .foregroundStyle(Color.textSecondary)
                         }
@@ -168,15 +167,14 @@ struct PetProfileView: View {
                 }
                 .buttonStyle(.plain)
             }
+        } accessory: {
             Button { showInvite = true } label: {
-                Label("Invite a caretaker", systemImage: "person.badge.plus")
-                    .font(.allo(18, .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
+                Label("Invite", systemImage: "plus")
+                    .font(.allo(14, .semibold))
             }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .padding(.top, 4)
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .accessibilityLabel("Invite a caretaker")
         }
     }
 }

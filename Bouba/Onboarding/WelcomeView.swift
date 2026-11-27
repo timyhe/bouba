@@ -144,22 +144,30 @@ struct RoleChoiceView: View {
     @Environment(AppStore.self) private var store
     @Binding var path: [OnboardingRoute]
 
+    private enum Role { case owner, caretaker }
+    @State private var role: Role?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("How will you\nuse Bouba?")
                 .font(.allo(34, .bold))
                 .padding(.bottom, 8)
 
-            choice(symbol: "house.fill", title: "I have a pet",
-                   detail: "Set up a profile, routine and instructions, then invite people to help.") {
-                path.append(.createPet)
-            }
-            choice(symbol: "heart.fill", title: "I'm caring for a pet",
-                   detail: "Join with the invite link or code an owner sent you.") {
-                path.append(.join)
-            }
+            choice(.owner, symbol: "house.fill", title: "I have a pet",
+                   detail: "Set up a profile and then invite people to help.")
+            choice(.caretaker, symbol: "heart.fill", title: "I'm caring for a pet",
+                   detail: "Join with the invite link or code an owner sent you.")
 
             Spacer()
+
+            PrimaryButton(title: "Continue") {
+                switch role {
+                case .owner: path.append(.createPet)
+                case .caretaker: path.append(.join)
+                case nil: break
+                }
+            }
+            .disabled(role == nil)
 
             Button {
                 store.startAsOwner()
@@ -168,32 +176,50 @@ struct RoleChoiceView: View {
                     .font(.allo(15, .semibold))
                     .foregroundStyle(Color.textSecondary)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
             }
             .buttonStyle(.borderless)
-            .padding(.bottom, 8)
         }
         .padding(24)
         .background(OnboardingBackground())
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: role)
     }
 
-    private func choice(symbol: String, title: String, detail: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: 16) {
+    private func choice(_ value: Role, symbol: String, title: String, detail: String) -> some View {
+        let isSelected = role == value
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        return Button {
+            role = value
+        } label: {
+            // Icon, text and checkmark share one vertical center line.
+            HStack(alignment: .center, spacing: 16) {
                 Image(systemName: symbol)
                     .font(.system(size: 26, weight: .semibold))
                     .foregroundStyle(Color.boubaOrangeText)
                     .frame(width: 36)
-                    .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.allo(19, .semibold)).foregroundStyle(.primary)
                     Text(detail).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
                         .multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)
+                // Space is kept for the checkmark so the text doesn't reflow when it appears.
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.boubaOrangeText)
+                    .opacity(isSelected ? 1 : 0)
+                    .instantSelection()
             }
-            .card(padding: 16)
+            .padding(16)
+            .background(Color(.systemBackground), in: shape)
+            .overlay {
+                shape.strokeBorder(isSelected ? Color.boubaOrangeText : Color(.systemGray5),
+                                   lineWidth: isSelected ? 2 : 1)
+            }
+            .contentShape(shape)
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(CardPressStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

@@ -39,8 +39,6 @@ struct ActivityView: View {
                     // The day's content slides sideways when you change dates; the strip itself snaps.
                     ZStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 16) {
-                            DaySummaryCard()
-
                             if pet.tasks.isEmpty {
                                 emptyState
                             } else {
@@ -54,6 +52,19 @@ struct ActivityView: View {
                         .id(store.selectedDate)
                         .transition(reduceMotion ? .opacity : .push(from: store.dateSlideEdge))
                     }
+                    .contentShape(Rectangle())
+                    // Swipe left or right anywhere on the day to move to the next or previous date.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 24)
+                            .onEnded { value in
+                                let dx = value.translation.width, dy = value.translation.height
+                                guard abs(dx) > 60, abs(dx) > abs(dy) * 1.5 else { return }
+                                let next = store.selectedDate.startOfDay.adding(days: dx < 0 ? 1 : -1)
+                                guard let first = WeekStrip.days.first, let last = WeekStrip.days.last,
+                                      next >= first, next <= last else { return }
+                                store.selectDate(next)
+                            }
+                    )
                     .animation(.snappy(duration: 0.32), value: store.selectedDate)
                 }
                 .padding(.horizontal, 16)
@@ -77,7 +88,7 @@ struct ActivityView: View {
           }
             // The toast carries an action, so it stays until dismissed or the day changes.
             .onChange(of: store.selectedDate) { toast = nil }
-            .sensoryFeedback(.success, trigger: toast)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: toast)
             .sheet(isPresented: $showEmergency) { EmergencySheet().solidSheet() }
             .sheet(isPresented: $showNotifications) { NotificationsSheet().solidSheet() }
             .sheet(isPresented: $showPostUpdate) { PostUpdateSheet().solidSheet() }
@@ -113,7 +124,7 @@ struct ActivityView: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    PetAvatar(pet: store.pet, size: TimelineMetrics.railWidth)
+                    PetAvatar(pet: store.pet, size: 46)  // matches the 46pt header buttons
                     Text(store.pet.name)
                         .font(.allo(28, .bold))
                         .foregroundStyle(.primary)
@@ -382,6 +393,15 @@ struct TaskCard: View {
     private var isLate: Bool { !isFuture && task.isLate(on: date) }
 
     var body: some View {
+        // The whole card opens the task; the info and action buttons inside take their own taps.
+        Button(action: onOpen) { content }
+            .buttonStyle(CardPressStyle())
+            .confirmationDialog("Mark \(task.title) as not done?", isPresented: $confirmUndo, titleVisibility: .visible) {
+                Button("Mark as not done", role: .destructive, action: onUndo)
+            }
+    }
+
+    private var content: some View {
         // Spacing 0 with a flexible spacer on each side of the title, so the gap above the
         // text always equals the gap below it, however tall the card stretches.
         VStack(alignment: .leading, spacing: 0) {
@@ -418,10 +438,6 @@ struct TaskCard: View {
         }
         .outlinedCard(padding: 12, radius: 24)
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .onTapGesture(perform: onOpen)
-        .confirmationDialog("Mark \(task.title) as not done?", isPresented: $confirmUndo, titleVisibility: .visible) {
-            Button("Mark as not done", role: .destructive, action: onUndo)
-        }
     }
 
     private var hasAction: Bool { completion != nil || !isFuture }
@@ -496,21 +512,33 @@ enum TimelineMetrics {
 
 struct WeekStrip: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var selection
     @State private var scrolledDay: Date?
+    /// Days currently on screen, so a swipe to an off-screen day scrolls it into view.
+    @State private var visibleDays: Set<Date> = []
 
-    private let days: [Date] = (-7...13).map { Date().startOfDay.adding(days: $0) }
+    static let days: [Date] = (-7...13).map { Date().startOfDay.adding(days: $0) }
+    private var days: [Date] { Self.days }
 
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 10) {
                 ForEach(days, id: \.self) { day in
                     DayCell(day: day,
-                            isSelected: Calendar.current.isDate(day, inSameDayAs: store.selectedDate))
+                            isSelected: Calendar.current.isDate(day, inSameDayAs: store.selectedDate),
+                            carers: carers(on: day),
+                            selection: selection)
                         .onTapGesture {
                             store.selectDate(day)
                         }
+                        .onScrollVisibilityChange(threshold: 0.9) { visible in
+                            if visible { visibleDays.insert(day) } else { visibleDays.remove(day) }
+                        }
                 }
             }
+            // The selected tile slides to the new date.
+            .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0), value: store.selectedDate)
             .scrollTargetLayout()
             .padding(.vertical, 6)
         }
@@ -521,188 +549,135 @@ struct WeekStrip: View {
         .onAppear {
             if scrolledDay == nil { scrolledDay = Date().startOfDay }
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: store.selectedDate)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: store.selectedDate)
         // "Back to today" brings today back into view too.
         .onChange(of: store.selectedDate) { _, day in
             if Calendar.current.isDateInToday(day) {
                 withAnimation(.snappy) { scrolledDay = day }
+            } else if !visibleDays.contains(day.startOfDay) {
+                // A swipe moved past the edge of the strip; bring the day into view.
+                withAnimation(.snappy) { scrolledDay = Calendar.current.date(byAdding: .day, value: -3, to: day.startOfDay) }
             }
         }
     }
 
 }
 
+/// Someone shown under a date in the week strip.
+struct DayCarer: Hashable {
+    let name: String
+    let color: Color
+    let photo: String?
+}
+
+extension WeekStrip {
+    /// The sitter on duty that day; otherwise the owner and co-owners.
+    func carers(on day: Date) -> [DayCarer] {
+        let caretakers = store.pet.caretakers
+        if let sitter = caretakers.first(where: { $0.role == .temporary && $0.isActive(on: day) }) {
+            return [DayCarer(name: sitter.name, color: sitter.color, photo: sitter.photo)]
+        }
+        let owner = DayCarer(name: store.ownerName, color: .boubaOrange, photo: store.ownerPhoto)
+        let coOwners = caretakers
+            .filter { $0.role == .coOwner && $0.isActive(on: day) }
+            .map { DayCarer(name: $0.name, color: $0.color, photo: $0.photo) }
+        return Array(([owner] + coOwners).prefix(3))
+    }
+}
+
 private struct DayCell: View {
     let day: Date
     let isSelected: Bool
+    /// Who's caring that day, shown as small avatars under the date.
+    var carers: [DayCarer]
+    /// Shared with the other cells so the selected tile slides between dates.
+    let selection: Namespace.ID
 
-    private var isToday: Bool { Calendar.current.isDateInToday(day) }
+    private let avatarSize: CGFloat = 16
+
+    /// Only the selected day shows who's caring.
+    private var showsPile: Bool { !carers.isEmpty && isSelected }
+    /// Width of the overlapping facepile, ring included.
+    private var pileWidth: CGFloat {
+        let n = CGFloat(carers.count)
+        return n * pileHeight - max(n - 1, 0) * pileOverlap
+    }
+
+    /// The facepile's height including its ring; half of it sits above the tile's top edge.
+    private var pileHeight: CGFloat { avatarSize + 3 }
+    private let pileOverlap: CGFloat = 4
 
     var body: some View {
         // Allo's line height leaves a big gap between lines, so pull the date up.
         VStack(spacing: -2) {
             Text(day.formatted(.dateTime.weekday(.abbreviated)).uppercased())
                 .font(.allo(15, .semibold))
-                .foregroundStyle(isToday ? Color.dangerText : (isSelected ? Color.primary : Color.secondary))
+                .foregroundStyle(isSelected ? Color.dangerText : Color.secondary)
             Text(day.formatted(.dateTime.day()))
                 .font(.allo(30, .semibold))
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
         }
-        .frame(width: TimelineMetrics.railWidth, height: 76)
+        // Nudge the text down a touch so it clears the avatars sitting on the top edge.
+        .offset(y: 2)
+        .frame(width: TimelineMetrics.railWidth + 6, height: 76)
         .background {
             if isSelected {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                // The tile grows a bump around the avatars so they read as part of the card, under one shadow.
+                let shape = DayTileShape(bumpWidth: showsPile ? pileWidth + 4 : 0, bumpHeight: pileHeight + 4)
+                shape
                     .fill(Color(.systemBackground))
-                    .layeredShadow(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .layeredShadow(shape)
+                    .matchedGeometryEffect(id: "selectedDay", in: selection)
             }
         }
+        // The facepile sits centered on the tile's top edge.
+        .overlay(alignment: .top) {
+            if showsPile {
+                facepile
+                    .offset(y: -pileHeight / 2)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .padding(.top, pileHeight / 2)
         .contentShape(Rectangle())
     }
-}
 
-// MARK: - Day summary
-
-/// Top of the Activity screen: two small cards side by side (who's caring, what's next),
-/// then a wide progress card for the day.
-struct DaySummaryCard: View {
-    @Environment(AppStore.self) private var store
-
-    private let radius: CGFloat = 28
-
-    var body: some View {
-        let pet = store.pet
-        let date = store.selectedDate
-        let total = pet.tasks.count
-        let done = pet.tasks.filter { $0.completion(on: date) != nil }.count
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-
-        // Who's caring sits in a gray banner, with the day's progress docked beneath it.
-        VStack(spacing: 0) {
-            caringBanner(pet: pet, date: date)
-
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(date.relativeDay.uppercased())
-                        .font(.allo(15, .semibold))
-                        .tracking(0.6)
-                        .foregroundStyle(Color.textSecondary)
-                    Text(total == 0 ? "Nothing scheduled" : "\(done) of \(total) done")
-                        .font(.allo(26, .bold))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                }
-                Spacer(minLength: 0)
-                PieProgress(progress: total == 0 ? 0 : Double(done) / Double(total),
-                            color: done == total && total > 0 ? Color.boubaGreen : Color.boubaOrange)
-                    .frame(width: 48, height: 48)
-            }
-            .card(padding: 18, radius: radius)
-        }
-        .background(Color.fieldFill, in: shape)
-        .sensoryFeedback(.impact, trigger: store.isCheckedIn)
-    }
-
-    // MARK: Caring banner
-
-    private func banner<Leading: View, Trailing: View>(
-        _ text: Text,
-        @ViewBuilder leading: () -> Leading,
-        @ViewBuilder trailing: () -> Trailing = { EmptyView() }
-    ) -> some View {
-        HStack(spacing: 10) {
-            leading()
-            text
-                .font(.allo(15, .semibold))
-                .foregroundStyle(Color.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-            Spacer(minLength: 8)
-            trailing()
-        }
-        .padding(.horizontal, 18)
-        .frame(minHeight: 44)
-        .padding(.vertical, 2)
-    }
-
-    @ViewBuilder
-    private func caringBanner(pet: Pet, date: Date) -> some View {
-        if !store.isOwner {
-            // Caretakers check in and out from here.
-            banner(Text(store.checkedInAt.map { "With \(pet.name) since \($0.timeString)" }
-                        ?? "Visiting \(pet.name)? Let \(store.ownerName) know")) {
-                InitialsAvatar(name: store.ownerName, color: .boubaOrange, size: 24)
-            } trailing: {
-                Button(store.isCheckedIn ? "Check out" : "Check in") {
-                    withAnimation { store.toggleCheckIn() }
-                }
-                .font(.allo(15, .semibold))
-                .foregroundStyle(Color.boubaOrangeText)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-            }
-        } else if let sitter = pet.caretakers.first(where: { $0.role == .temporary && $0.isActive(on: date) }) {
-            let detail = store.checkedInAt.map { "checked in at \($0.timeString)" }
-                ?? "through \(sitter.end.formatted(.dateTime.month(.abbreviated).day()))"
-            banner(Text("\(sitter.name) is caring \(detail)")) {
-                InitialsAvatar(name: sitter.name, color: sitter.color, size: 24)
-                    .overlay(alignment: .bottomTrailing) {
-                        if store.isCheckedIn {
-                            Circle().fill(Color.boubaGreen)
-                                .frame(width: 9, height: 9)
-                                .overlay(Circle().strokeBorder(Color.fieldFill, lineWidth: 1.5))
-                                .offset(x: 2, y: 2)
-                        }
-                    }
-            }
-        } else {
-            let team = pet.caretakers.filter { $0.role == .coOwner }.map(\.name)
-            banner(Text(team.isEmpty ? "Just you on care" : "You & \(team.joined(separator: ", ")) on care")) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.textSecondary)
-                    .frame(width: 24, height: 24)
+    // Overlapping facepile; each face gets a ring in the tile's color so they read as separate.
+    private var facepile: some View {
+        HStack(spacing: -pileOverlap) {
+            ForEach(carers, id: \.self) { carer in
+                InitialsAvatar(name: carer.name, color: carer.color, size: avatarSize, photo: carer.photo)
+                    .padding(1.5)
+                    .background(Circle().fill(Color(.systemBackground)))
             }
         }
+        .frame(height: pileHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(carers.map(\.name).formatted(.list(type: .and)) + " caring")
     }
 }
 
-/// A pie that fills clockwise from 12 o'clock inside a faint ring.
-struct PieProgress: View {
-    var progress: Double
-    var color: Color
-
-    var body: some View {
-        ZStack {
-            Circle().strokeBorder(color.opacity(0.2), lineWidth: 4)
-            // A same-color stroke with round joins softens the wedge's corners.
-            PieSlice(progress: progress)
-                .fill(color)
-                .overlay(PieSlice(progress: progress).stroke(color, style: StrokeStyle(lineWidth: 4, lineJoin: .round)))
-                .padding(11)
-        }
-        .animation(.snappy, value: progress)
-    }
-}
-
-private struct PieSlice: Shape {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
+/// A rounded tile with an optional capsule bump centered on its top edge (for the day's avatars).
+private struct DayTileShape: InsettableShape {
+    var bumpWidth: CGFloat
+    var bumpHeight: CGFloat
+    var cornerRadius: CGFloat = 18
+    var insetAmount: CGFloat = 0
 
     func path(in rect: CGRect) -> Path {
-        let p = min(max(progress, 0), 1)
-        guard p > 0 else { return Path() }
-        if p >= 1 { return Path(ellipseIn: rect) }
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        var path = Path()
-        path.move(to: center)
-        path.addArc(center: center, radius: min(rect.width, rect.height) / 2,
-                    startAngle: .degrees(-90), endAngle: .degrees(-90 + 360 * p), clockwise: false)
-        path.closeSubpath()
-        return path
+        let tile = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let path = Path(roundedRect: tile, cornerRadius: max(cornerRadius - insetAmount, 0), style: .continuous)
+        guard bumpWidth > 0 else { return path }
+        let bump = CGRect(x: rect.midX - bumpWidth / 2, y: rect.minY - bumpHeight / 2,
+                          width: bumpWidth, height: bumpHeight)
+            .insetBy(dx: insetAmount, dy: insetAmount)
+        return path.union(Path(roundedRect: bump, cornerRadius: bump.height / 2))
+    }
+
+    func inset(by amount: CGFloat) -> DayTileShape {
+        var shape = self
+        shape.insetAmount += amount
+        return shape
     }
 }
 

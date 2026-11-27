@@ -1,25 +1,38 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Card container (white fill, layered shadow, rounded)
+// MARK: - Card container
+// Tappable cards are white with a layered shadow; static (non-tappable) cards are flat light gray.
 
 struct CardStyle: ViewModifier {
     var padding: CGFloat = 16
     var radius: CGFloat = 24
+    var interactive: Bool = true
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        content
+        let padded = content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemBackground), in: shape)
-            .layeredShadow(shape)
+        if interactive {
+            padded
+                .background(Color(.systemBackground), in: shape)
+                .layeredShadow(shape)
+        } else {
+            padded.background(Color.fieldFill, in: shape)
+        }
     }
 }
 
 extension View {
+    /// White card with a layered shadow, for cards you can tap.
     func card(padding: CGFloat = 16, radius: CGFloat = 24) -> some View {
         modifier(CardStyle(padding: padding, radius: radius))
+    }
+
+    /// Flat light-gray card, for content that isn't tappable.
+    func staticCard(padding: CGFloat = 16, radius: CGFloat = 24) -> some View {
+        modifier(CardStyle(padding: padding, radius: radius, interactive: false))
     }
 
     /// Rounded gray input field style used across forms outside of `Form`.
@@ -47,10 +60,56 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-/// For selection tiles: no press dim or shrink, so the new selection shows the instant you tap.
+/// For selection tiles: a slight shrink on press but no dim, so the new selection shows the instant you tap.
 struct InstantSelectStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.contentShape(Rectangle())
+        PressScale(label: configuration.label.contentShape(Rectangle()), isPressed: configuration.isPressed)
+    }
+}
+
+/// Shrinks to 0.97 while pressed. Inside a scroll view iOS reports a quick tap's press only as the finger lifts,
+/// so the pressed look is held for a minimum time and quick taps still visibly shrink.
+private struct PressScale<Label: View>: View {
+    let label: Label
+    let isPressed: Bool
+
+    @State private var shown = false
+    @State private var pressedAt = Date.distantPast
+    private let minimumHold: TimeInterval = 0.12
+
+    var body: some View {
+        label
+            .animation(.spring(duration: 0.25, bounce: 0)) { content in
+                content.scaleEffect(shown ? 0.97 : 1)
+            }
+            .onChange(of: isPressed) { _, pressed in
+                if pressed {
+                    pressedAt = .now
+                    shown = true
+                } else {
+                    let remaining = minimumHold - Date.now.timeIntervalSince(pressedAt)
+                    guard remaining > 0 else { shown = false; return }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(remaining))
+                        if !isPressed { shown = false }
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    /// Checkbox and selection marks flip instantly: no cross-fade, even inside an animated change.
+    func instantSelection() -> some View {
+        contentTransition(.identity)
+            .transaction { $0.animation = nil }
+    }
+}
+
+/// For tappable cards: shrinks slightly while pressed.
+struct CardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PressScale(label: configuration.label, isPressed: configuration.isPressed)
     }
 }
 
@@ -83,8 +142,13 @@ struct PrimaryButton: View {
     var isLoading = false
     var action: () -> Void
 
+    @State private var taps = 0
+
     var body: some View {
-        Button(action: action) {
+        Button {
+            taps += 1
+            action()
+        } label: {
             HStack(spacing: 8) {
                 if isLoading {
                     // Small and gray to match the disabled label beside it.
@@ -103,6 +167,7 @@ struct PrimaryButton: View {
         .buttonStyle(.glassProminent)
         .tint(Color.boubaOrangeFill)
         .controlSize(.large)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: taps)
     }
 }
 
@@ -148,13 +213,28 @@ struct InitialsAvatar: View {
     let name: String
     var color: Color = .boubaOrange
     var size: CGFloat = 40
+    /// A bundled portrait to show instead of the initial. Defaults to "avatar-<name>" when one is bundled.
+    var photo: String? = nil
+
+    private var image: UIImage? {
+        UIImage(named: photo ?? "avatar-\(name.lowercased())")
+    }
 
     var body: some View {
-        Text(String(name.prefix(1)).uppercased())
-            .font(.allo(size * 0.42, .bold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(color, in: Circle())
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+                .accessibilityLabel(name)
+        } else {
+            Text(String(name.prefix(1)).uppercased())
+                .font(.allo(size * 0.42, .bold))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(color, in: Circle())
+        }
     }
 }
 
@@ -216,7 +296,7 @@ struct Chip: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .sensoryFeedback(.impact(weight: .light), trigger: isSelected)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: isSelected)
     }
 }
 
@@ -288,11 +368,20 @@ enum InfoCardMetrics {
     static var textInset: CGFloat { iconColumn + gap }
 }
 
-struct InfoCard<Content: View>: View {
+struct InfoCard<Content: View, Accessory: View>: View {
     let title: String
     let symbol: String
     var tint: Color = .boubaOrange
     @ViewBuilder var content: Content
+    /// Optional control pinned to the trailing edge of the header.
+    @ViewBuilder var accessory: Accessory
+
+    init(title: String, symbol: String, tint: Color = .boubaOrange,
+         @ViewBuilder content: () -> Content,
+         @ViewBuilder accessory: () -> Accessory) {
+        self.title = title; self.symbol = symbol; self.tint = tint
+        self.content = content(); self.accessory = accessory()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -303,10 +392,18 @@ struct InfoCard<Content: View>: View {
                     .frame(width: InfoCardMetrics.iconColumn, height: InfoCardMetrics.iconColumn)
                     .background(tint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 Text(title).font(.allo(18, .semibold))
+                Spacer(minLength: 0)
+                accessory
             }
             content
         }
-        .card(padding: 18)
+        .staticCard(padding: 18)
+    }
+}
+
+extension InfoCard where Accessory == EmptyView {
+    init(title: String, symbol: String, tint: Color = .boubaOrange, @ViewBuilder content: () -> Content) {
+        self.init(title: title, symbol: symbol, tint: tint, content: content, accessory: { EmptyView() })
     }
 }
 
@@ -365,7 +462,7 @@ struct KeyValueRow: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel(copied ? "Copied \(label)" : "Copy \(label)")
                 .foregroundStyle(Color.textSecondary)
-                .sensoryFeedback(.success, trigger: copied)
+                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: copied)
             }
     }
 }

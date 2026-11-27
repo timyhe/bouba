@@ -275,6 +275,8 @@ struct Caretaker: Identifiable {
     var name: String
     var role: CaretakerRole
     var color: Color = .purple
+    /// Name of a bundled portrait; falls back to initials when nil or missing.
+    var photo: String? = nil
     var start: Date = Date().startOfDay
     var end: Date = Date().startOfDay.adding(days: 3)
     var earlyAccessDays: Int = 3

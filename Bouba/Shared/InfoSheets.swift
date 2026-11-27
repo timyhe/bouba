@@ -137,6 +137,8 @@ struct NotificationsSheet: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        // No line above the first notification, right under the title.
+                        .listRowSeparator(n.id == store.notifications.first?.id ? .hidden : .automatic, edges: .top)
                     }
                     .listStyle(.plain)
                 }

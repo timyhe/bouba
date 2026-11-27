@@ -35,40 +35,49 @@ struct MeView: View {
                         if role == .caretaker { store.selectedPetID = store.pets[0].id }
                     }
                 } header: {
-                    Text("Prototype")
+                    header("Prototype")
                 } footer: {
-                    Text("Switch perspectives to see what owners and caretakers each get. Completing tasks as Andrew sends Brian notifications.")
+                    footer("Switch perspectives to see what owners and caretakers each get. Completing tasks as Andrew sends Brian notifications.")
                 }
 
-                Section("Notifications") {
+                Section {
                     Toggle("Task reminders", isOn: $remindTasks)
                         .tint(Color.boubaOrange)
                     Toggle("When tasks are completed", isOn: $notifyCompletions)
                         .tint(Color.boubaOrange)
                     Toggle("Photo updates", isOn: $notifyPhotos)
                         .tint(Color.boubaOrange)
+                } header: {
+                    header("Notifications")
                 }
 
-                Section("Pets") {
+                Section {
                     ForEach(store.isOwner ? store.pets : [store.pets[0]]) { pet in
                         Button {
                             store.selectedPetID = pet.id
                         } label: {
-                            HStack(spacing: 12) {
-                                PetAvatar(pet: pet, size: 38)
+                            // Avatar matches the list's icon size, and the 16pt gap puts the names on the
+                            // same edge as "Join a pet with a code" below.
+                            HStack(spacing: 16) {
+                                PetAvatar(pet: pet, size: 24)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(pet.name).font(.allo(16, .semibold))
                                     Text(pet.subtitle).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
                                 }
+                                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                                 Spacer()
-                                if pet.id == store.selectedPetID {
-                                    Image(systemName: "checkmark").foregroundStyle(Color.boubaOrangeText)
-                                }
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.boubaOrangeText)
+                                    .opacity(pet.id == store.selectedPetID ? 1 : 0)
+                                    .instantSelection()
+                                    .accessibilityHidden(pet.id != store.selectedPetID)
                             }
                         }
                         .tint(Color.primary)
                     }
                     Button("Join a pet with a code", systemImage: "link") { showJoin = true }
+                } header: {
+                    header("Pets")
                 }
 
                 if store.isOwner {
@@ -76,9 +85,9 @@ struct MeView: View {
                         LabeledContent("Bouba Free", value: "1 free sitter left")
                         Button("Refer a friend, get a free sitter", systemImage: "gift.fill") {}
                     } header: {
-                        Text("Plan")
+                        header("Plan")
                     } footer: {
-                        Text("You and co-owners are always free. Temporary sitters are part of Bouba Plus.")
+                        footer("You and co-owners are always free. Temporary sitters are part of Bouba Plus.")
                     }
                 }
 
@@ -86,9 +95,12 @@ struct MeView: View {
                     Button("Replay onboarding", systemImage: "arrow.counterclockwise") {
                         store.hasOnboarded = false
                     }
-                    Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                    Button(role: .destructive) {
                         store.role = .owner
                         store.hasOnboarded = false
+                    } label: {
+                        Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                            .foregroundStyle(Color.red)
                     }
                 }
             }
@@ -105,5 +117,13 @@ struct MeView: View {
                 .solidSheet()
             }
         }
+    }
+
+    private func header(_ text: String) -> some View {
+        Text(text).font(.allo(16, .medium))
+    }
+
+    private func footer(_ text: String) -> some View {
+        Text(text).font(.alloSubtext(13))
     }
 }

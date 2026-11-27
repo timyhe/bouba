@@ -73,7 +73,7 @@ struct TaskDetailSheet: View {
                             KeyValueRow(symbol: "text.quote", label: "How to", value: task.instructions)
                         }
                     }
-                    .card()
+                    .staticCard()
                 }
 
                 if let done {
@@ -109,7 +109,7 @@ struct TaskDetailSheet: View {
                             if c.id != history.last?.id { Divider().padding(.leading, 52) }
                         }
                     }
-                    .card(padding: 14)
+                    .staticCard(padding: 14)
                 }
             }
             .padding(20)
@@ -192,7 +192,7 @@ struct TaskEditorSheet: View {
                         }
                     }
                     .padding(.vertical, 6)
-                    .sensoryFeedback(.impact(weight: .light), trigger: task.kind)
+                    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: task.kind)
                 }
 
                 Section("Details") {

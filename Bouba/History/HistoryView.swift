@@ -222,7 +222,7 @@ struct UpdateCard: View {
                 Text(update.text).font(.allo(16))
             }
         }
-        .card()
+        .staticCard()
     }
 }
 

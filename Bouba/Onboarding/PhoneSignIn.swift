@@ -145,10 +145,6 @@ struct VerifyCodeView: View {
             }
             .font(.alloSubtext(17))
 
-            Label("Prototype: any 6 digits will work.", systemImage: "info.circle")
-                .font(.alloSubtext(16))
-                .foregroundStyle(Color.textSecondary)
-
             Spacer()
 
             // Stays above the keyboard. The code verifies itself once all digits are in,
@@ -165,7 +161,7 @@ struct VerifyCodeView: View {
         .onReceive(timer) { _ in
             if secondsLeft > 0 { secondsLeft -= 1 }
         }
-        .sensoryFeedback(.success, trigger: verifying) { _, new in new }
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: verifying) { _, new in new }
     }
 
     private func digitBox(_ index: Int) -> some View {

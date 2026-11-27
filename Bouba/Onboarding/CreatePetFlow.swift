@@ -130,6 +130,16 @@ struct CreatePetFlow: View {
             }
         }
         .background(OnboardingBackground())
+        // Hiding the system back button also turns off its edge swipe, so steps past the first get their own.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .global)
+                .onEnded { value in
+                    guard step > 0, value.startLocation.x < 32,
+                          value.translation.width > 80,
+                          abs(value.translation.height) < value.translation.width else { return }
+                    go(to: step - 1)
+                }
+        )
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(step > 0)
         .toolbar {
@@ -299,7 +309,7 @@ struct CreatePetFlow: View {
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(species == s ? .isSelected : [])
                     .selectionPop(species == s)
-                    .sensoryFeedback(.impact(weight: .light), trigger: species)
+                    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: species)
                 }
             }
 
@@ -321,7 +331,7 @@ struct CreatePetFlow: View {
                 }
                 .card(padding: 14)
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(CardPressStyle())
         }
     }
 
@@ -448,7 +458,7 @@ struct CreatePetFlow: View {
                 }
                 .animation(.snappy, value: age)
                 .sensoryFeedback(.selection, trigger: age)
-                .card(padding: 14)
+                .staticCard(padding: 14)
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -479,7 +489,7 @@ struct CreatePetFlow: View {
                         .selectionPop(size == s)
                     }
                 }
-                .sensoryFeedback(.impact(weight: .light), trigger: size)
+                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: size)
             }
         }
     }
@@ -498,6 +508,7 @@ struct CreatePetFlow: View {
                             IconTile(kind: s.kind, size: 42)
                                 .saturation(isOn ? 1 : 0)
                                 .opacity(isOn ? 1 : 0.5)
+                                .instantSelection()
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(s.title).font(.allo(16, .semibold)).foregroundStyle(.primary)
                                 Text([s.timeString, s.amount].filter { !$0.isEmpty }.joined(separator: " · "))
@@ -507,13 +518,14 @@ struct CreatePetFlow: View {
                             Spacer()
                             Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
                                 .font(.system(size: 24))
-                                .foregroundStyle(isOn ? Color.boubaOrangeText : Color(.systemGray))
+                                .foregroundStyle(isOn ? Color.boubaOrangeText : Color(.systemGray3))
+                                .instantSelection()
                         }
                         .card(padding: 12, radius: 18)
                     }
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(isOn ? .isSelected : [])
-                    .sensoryFeedback(.impact(weight: .light), trigger: isOn)
+                    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: isOn)
                 }
             }
         }
@@ -547,13 +559,14 @@ struct CreatePetFlow: View {
                             Image(systemName: permission == p ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
                                 .foregroundStyle(permission == p ? Color.boubaOrangeText : Color(.systemGray))
+                                .instantSelection()
                         }
                         .card(padding: 14, radius: 18)
                     }
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(permission == p ? .isSelected : [])
                 }
-                .sensoryFeedback(.impact(weight: .light), trigger: permission)
+                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: permission)
             }
         }
     }
@@ -588,13 +601,14 @@ struct CreatePetFlow: View {
                             Image(systemName: invite.role == role ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
                                 .foregroundStyle(invite.role == role ? Color.boubaOrangeText : Color(.systemGray))
+                                .instantSelection()
                         }
                         .card(padding: 14, radius: 18)
                     }
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(invite.role == role ? .isSelected : [])
                 }
-                .sensoryFeedback(.impact(weight: .light), trigger: invite.role)
+                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: invite.role)
             }
 
             if invite.role == .temporary {
@@ -649,7 +663,7 @@ struct CreatePetFlow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(linkCopied ? "Invite link copied" : "Copy invite link")
-                .sensoryFeedback(.success, trigger: linkCopied)
+                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: linkCopied)
                 ShareLink(item: invite.inviteURL,
                           subject: Text("Help care for \(displayName)"),
                           message: Text(inviteMessage)) {
