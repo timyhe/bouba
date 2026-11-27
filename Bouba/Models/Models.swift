@@ -414,4 +414,7 @@ struct AppNotification: Identifiable {
     /// Who it's about, shown as their photo or initial beside the action icon.
     var actor: String? = nil
     var actorColor: Color = .boubaOrange
+    /// For a shared update: the answer to "How's <pet> doing?", and any photos.
+    var mood: String? = nil
+    var photos: [Photo] = []
 }

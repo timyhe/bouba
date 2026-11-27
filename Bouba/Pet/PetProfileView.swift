@@ -34,7 +34,7 @@ struct PetProfileView: View {
                         }
                     }
 
-                    if store.isOwner || accessForCaretaker(pet) {
+                    if (store.isOwner || accessForCaretaker(pet)) && hasHomeInfo(pet.home) {
                         InfoCard(title: "Getting in") {
                             if !pet.home.address.isEmpty {
                                 KeyValueRow(symbol: "mappin.and.ellipse", label: "Address", value: pet.home.address, copyable: true)
@@ -93,6 +93,11 @@ struct PetProfileView: View {
         }
     }
 
+    /// Hides the Getting in card when none of its fields are filled in.
+    private func hasHomeInfo(_ home: HomeAccess) -> Bool {
+        ![home.address, home.entry, home.code, home.wifiName, home.wifiPassword, home.notes].allSatisfy(\.isEmpty)
+    }
+
     private func accessForCaretaker(_ pet: Pet) -> Bool {
         pet.caretakers.first { $0.name == store.sitterName }?.showHomeAccess ?? true
     }
@@ -149,15 +154,16 @@ struct PetProfileView: View {
             }
     }
 
-    /// A small gray pill: icon plus value, e.g. a cake and "8 years old".
+    /// A small gray pill with gray icon and text, e.g. a cake and "8 years old".
     private func basic(_ symbol: String, _ text: String, label: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
-            Text(text).font(.bouba(.subhead, .medium))
+        HStack(spacing: 4) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+            Text(text).font(.bouba(.footnote, .medium))
         }
+        .foregroundStyle(Color.textSecondary)
         .fixedSize()
-        .padding(.horizontal, 10)
-        .frame(minHeight: 34)
+        .padding(.horizontal, 9)
+        .frame(minHeight: 26)
         .background(Color.fieldFill, in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label == "Age" ? text : label)

@@ -128,11 +128,14 @@ final class AppStore {
     func post(_ update: PetUpdate) {
         modifyPet { $0.updates.append(update) }
         if !isOwner {
+            let count = update.photos.count
             notifications.insert(
-                AppNotification(date: Date(), symbol: "camera.fill", color: .pink,
-                                title: "\(sitterName) shared an update",
-                                body: update.text.isEmpty ? "\(update.photos.count) new photo\(update.photos.count == 1 ? "" : "s") of \(pet.name)" : update.text,
-                                actor: sitterName),
+                AppNotification(date: Date(), symbol: "paperplane.fill", color: .pink,
+                                title: count > 0 ? "\(sitterName) shared \(count) photo\(count == 1 ? "" : "s")" : "\(sitterName) shared an update",
+                                body: update.text,
+                                actor: sitterName,
+                                mood: update.mood,
+                                photos: update.photos),
                 at: 0)
             hasUnreadNotifications = true
         }
@@ -312,8 +315,9 @@ extension AppStore {
         return [
             AppNotification(date: now.adding(minutes: -35), symbol: "fork.knife", color: .petOrange,
                             title: "Andrew completed Breakfast", body: "Felix ate it all.", actor: "Andrew", actorColor: .purple),
-            AppNotification(date: now.adding(minutes: -60 * 18), symbol: "camera.fill", color: .pink,
-                            title: "Andrew shared 2 photos", body: "Felix made a new best friend at the dog run!", actor: "Andrew", actorColor: .purple),
+            AppNotification(date: now.adding(minutes: -60 * 18), symbol: "paperplane.fill", color: .pink,
+                            title: "Andrew shared 2 photos", body: "Felix made a new best friend at the dog run!", actor: "Andrew", actorColor: .purple,
+                            mood: "Playful", photos: [Photo(sample: 0), Photo(sample: 1)]),
             AppNotification(date: now.adding(minutes: -60 * 26), symbol: "person.badge.plus", color: .blue,
                             title: "Andrew joined Felix's care team", body: "Access through \(Date().adding(days: 3).shortDay).", actor: "Andrew", actorColor: .purple),
         ]

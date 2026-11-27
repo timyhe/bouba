@@ -188,7 +188,7 @@ struct ActivityView: View {
 
             HStack(spacing: 0) {
                 if !store.isOwner {
-                    headerButton("camera", label: "Post update") { showPostUpdate = true }
+                    headerButton("paperplane", label: "Post update") { showPostUpdate = true }
                 }
                 headerButton("exclamationmark.triangle", label: "Emergency info") { showEmergency = true }
                 headerButton("bell", label: "Notifications", badge: store.hasUnreadNotifications) { showNotifications = true }

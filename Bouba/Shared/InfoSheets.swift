@@ -139,7 +139,26 @@ struct NotificationsSheet: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("\(Text(n.title).font(.bouba(.callout, .semibold))) \(Text(n.date.shortAgo).font(.boubaSecondary(.callout)).foregroundStyle(Color.textTertiary))")
                                         .accessibilityLabel("\(n.title), \(n.date.relativeDay) at \(n.date.timeString)")
-                                    Text(n.body).font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
+                                    if !n.body.isEmpty {
+                                        Text(n.body).font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
+                                    }
+                                }
+                                if let mood = n.mood {
+                                    Tag(text: mood, color: .ink, symbol: PetUpdate.moodSymbol(mood))
+                                        .accessibilityLabel("Mood: \(mood)")
+                                }
+                                if !n.photos.isEmpty {
+                                    ScrollView(.horizontal) {
+                                        HStack(spacing: 6) {
+                                            ForEach(n.photos) { photo in
+                                                PhotoView(photo: photo)
+                                                    .frame(width: 96, height: 96)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                            }
+                                        }
+                                    }
+                                    .scrollIndicators(.hidden)
+                                    .accessibilityLabel("\(n.photos.count) photo\(n.photos.count == 1 ? "" : "s")")
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)

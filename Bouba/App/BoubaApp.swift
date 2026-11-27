@@ -26,15 +26,18 @@ struct RootView: View {
     var body: some View {
         let _ = AlloFont.setContentSize(dynamicTypeSize)
         ZStack {
+            // Finishing onboarding slides it down off the screen, revealing the Activity
+            // screen already in place underneath. Replaying onboarding slides it back up.
             if store.hasOnboarded {
                 MainTabView()
-                    .transition(.opacity)
+                    .transition(.identity)
             } else {
                 WelcomeView()
-                    .transition(.opacity)
+                    .transition(.move(edge: .bottom))
+                    .zIndex(1)
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: store.hasOnboarded)
+        .animation(.spring(duration: 0.5, bounce: 0), value: store.hasOnboarded)
         .fullScreenCover(isPresented: Bindable(store).showingMeet) {
             NavigationStack {
                 MeetThePetView(onFinish: { store.showingMeet = false })
