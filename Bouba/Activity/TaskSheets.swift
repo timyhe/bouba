@@ -10,6 +10,9 @@ struct TaskDetailSheet: View {
 
     @State private var editing: CareTask?
     @State private var detailsFor: CompletionToast?
+    /// Full height of the scroll content plus its insets, so the sheet can hug it.
+    @State private var fittedHeight: CGFloat?
+    @State private var detent: PresentationDetent = .medium
 
     var body: some View {
         NavigationStack {
@@ -20,13 +23,15 @@ struct TaskDetailSheet: View {
                     ContentUnavailableView("Task removed", systemImage: "trash")
                 }
             }
+            .navigationTitle(store.task(taskID)?.title ?? "")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { dismiss() }
                 }
                 if store.isOwner, let task = store.task(taskID) {
                     ToolbarItem(placement: .primaryAction) {
-                        Button { editing = task } label: { Text("Edit").font(.allo(17, .medium)) }
+                        Button { editing = task } label: { Text("Edit").font(.bouba(.body, .medium)) }
                     }
                 }
             }
@@ -39,8 +44,20 @@ struct TaskDetailSheet: View {
                 .solidSheet()
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([smallDetent, .large], selection: $detent)
         .presentationDragIndicator(.visible)
+    }
+
+    /// Half the screen, the system's medium height.
+    private var halfScreen: CGFloat {
+        let screen = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.screen.bounds.height }.first
+        return (screen ?? 874) / 2
+    }
+
+    /// Opens small: hugging short content, or at half height when there's more, then drags up to full.
+    private var smallDetent: PresentationDetent {
+        guard let fittedHeight, fittedHeight < halfScreen else { return .medium }
+        return .height(fittedHeight)
     }
 
     private func content(_ task: CareTask) -> some View {
@@ -50,17 +67,17 @@ struct TaskDetailSheet: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 16) {
-                    IconTile(kind: task.kind, size: 64)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.title).font(.allo(26, .bold))
+                HStack(spacing: 12) {
+                    IconTile(kind: task.kind, size: 50)
+                    // The schedule is the headline; timing is a quieter note under it, in orange
+                    // (plus its own icon and words) only when it has to happen on time.
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Daily at \(task.timeString)")
-                            .font(.alloSubtext(17))
-                            .foregroundStyle(Color.textSecondary)
+                            .font(.bouba(.body, .semibold))
                         Label(task.isTimeSensitive ? "Time sensitive" : "Flexible timing",
-                              systemImage: task.isTimeSensitive ? "clock.badge.exclamationmark.fill" : "clock")
-                            .font(.allo(15, .semibold))
-                            .foregroundStyle(task.isTimeSensitive ? Color.boubaOrangeText : Color.secondary)
+                              systemImage: task.isTimeSensitive ? "clock.badge.exclamationmark.fill" : "clock.fill")
+                            .font(.boubaSecondary(.subhead))
+                            .foregroundStyle(task.isTimeSensitive ? Color.boubaOrangeText : Color.textSecondary)
                     }
                 }
 
@@ -80,12 +97,13 @@ struct TaskDetailSheet: View {
                     HStack(spacing: 10) {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.boubaGreen)
                         Text("Done by \(done.by) at \(done.date.timeString)")
-                            .font(.allo(15, .semibold))
+                            .font(.bouba(.subhead, .semibold))
+                            .foregroundStyle(Color.onGreenTint)
                         Spacer()
                         Button("Add details") {
                             detailsFor = CompletionToast(taskID: task.id, completionID: done.id, title: task.title)
                         }
-                        .font(.allo(14, .semibold))
+                        .font(.bouba(.footnote, .semibold))
                         .buttonStyle(.glass)
                     }
                     .padding(14)
@@ -102,17 +120,30 @@ struct TaskDetailSheet: View {
 
                 let history = task.completions.filter { $0.date <= Date() }.sorted { $0.date > $1.date }.prefix(8)
                 if !history.isEmpty {
-                    Text("Recent").font(.allo(19, .bold)).padding(.top, 4)
+                    Text("Recent").font(.bouba(.title3)).padding(.top, 4)
+                    // Laid out like the notifications list: plain rows split by hairlines, no card.
                     VStack(spacing: 0) {
                         ForEach(Array(history)) { c in
+                            if c.id != history.first?.id { Divider() }
                             CompletionRow(completion: c)
-                            if c.id != history.last?.id { Divider().padding(.leading, 52) }
+                                .padding(.vertical, 12)
                         }
                     }
-                    .staticCard(padding: 14)
+                    .padding(.top, -8)
                 }
             }
             .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // Measure the content so short tasks can open at exactly their height.
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentSize.height + geo.contentInsets.top + geo.contentInsets.bottom
+        } action: { _, height in
+            let height = height.rounded()
+            guard height != fittedHeight else { return }
+            fittedHeight = height
+            // Follow the content while small, but leave it alone once someone drags it up.
+            if detent != .large { detent = smallDetent }
         }
     }
 }
@@ -121,27 +152,30 @@ struct CompletionRow: View {
     let completion: Completion
     @Environment(AppStore.self) private var store
 
+    /// The option picked and any note, as the row's secondary line.
+    private var detail: String? {
+        let parts = [completion.option, completion.note.isEmpty ? nil : completion.note].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var body: some View {
+        // Styled like a notification row, minus the action circle, with the text beside the avatar.
         HStack(alignment: .top, spacing: 12) {
-            InitialsAvatar(name: completion.by, color: completion.by == store.ownerName ? .boubaOrange : .purple, size: 38)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("\(completion.by) · \(completion.date.relativeDay), \(completion.date.timeString)")
-                    .font(.allo(15, .semibold))
-                if let option = completion.option {
-                    Text(option).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
-                }
-                if !completion.note.isEmpty {
-                    Text(completion.note).font(.allo(14))
-                }
+            InitialsAvatar(name: completion.by, color: completion.by == store.ownerName ? .boubaOrange : .purple, size: 36)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(Text(completion.by).font(.bouba(.callout, .semibold))) \(Text(completion.date.shortAgo).font(.boubaSecondary(.callout)).foregroundStyle(Color.textTertiary))")
+                    .accessibilityLabel("\(completion.by), \(completion.date.relativeDay) at \(completion.date.timeString)")
+                // Always two lines, so rows without an option or note don't leave a gap beside the avatar.
+                Text(detail ?? "No details").font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
             if let photo = completion.photo {
                 PhotoView(photo: photo)
                     .frame(width: 52, height: 52)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
-        .padding(.vertical, 8)
     }
 }
 
@@ -169,7 +203,7 @@ struct TaskEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("What kind of task?") {
+                Section(styledHeader: "What kind of task?") {
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(TaskKind.allCases) { kind in
                             Button {
@@ -183,7 +217,7 @@ struct TaskEditorSheet: View {
                                         .opacity(task.kind == kind ? 1 : 0.35)
                                         .scaleEffect(task.kind == kind ? 1.08 : 1)
                                     Text(kind.label)
-                                        .font(.allo(11, .medium))
+                                        .font(.bouba(.caption))
                                         .foregroundStyle(task.kind == kind ? Color.primary : Color.secondary)
                                         .lineLimit(1)
                                 }
@@ -192,20 +226,20 @@ struct TaskEditorSheet: View {
                         }
                     }
                     .padding(.vertical, 6)
-                    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: task.kind)
+                    .sensoryFeedback(.boubaSelect, trigger: task.kind)
                 }
 
-                Section("Details") {
+                Section(styledHeader: "Details") {
                     TextField("Name", text: $task.title).font(.alloInput)
                     DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
                     TextField("Amount (e.g. 1 cup, 30 min)", text: $task.amount).font(.alloInput)
                     Toggle(isOn: $task.isTimeSensitive) {
                         Label("Time sensitive", systemImage: "clock.badge.exclamationmark")
                     }
-                    .tint(Color.boubaOrange)
+                    .tint(Color.toggleTint)
                 }
 
-                Section("Instructions") {
+                Section(styledHeader: "Instructions") {
                     TextField("How should this be done?", text: $task.instructions, axis: .vertical).font(.alloInput)
                         .lineLimit(3...8)
                 }
@@ -271,7 +305,7 @@ struct CompletionDetailsSheet: View {
                 VStack(alignment: .leading, spacing: 22) {
                     if let task, !task.kind.quickOptions.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("How did it go?").font(.allo(17, .semibold))
+                            Text("How did it go?").font(.bouba(.body, .semibold))
                             FlowLayout {
                                 ForEach(task.kind.quickOptions, id: \.self) { o in
                                     Chip(label: o, isSelected: option == o) {
@@ -283,7 +317,7 @@ struct CompletionDetailsSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Photo").font(.allo(17, .semibold))
+                        Text("Photo").font(.bouba(.body, .semibold))
                         PhotosPicker(selection: $pickerItem, matching: .images) {
                             if let image {
                                 Image(uiImage: image)
@@ -295,7 +329,7 @@ struct CompletionDetailsSheet: View {
                             } else {
                                 VStack(spacing: 8) {
                                     Image(systemName: "camera.fill").font(.system(size: 28))
-                                    Text("Add a photo").font(.allo(15, .medium))
+                                    Text("Add a photo").font(.bouba(.subhead, .semibold))
                                 }
                                 .foregroundStyle(Color.textSecondary)
                                 .frame(maxWidth: .infinity)
@@ -307,7 +341,7 @@ struct CompletionDetailsSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Note").font(.allo(17, .semibold))
+                        Text("Note").font(.bouba(.body, .semibold))
                         TextField("Anything worth sharing?", text: $note, axis: .vertical).font(.alloInput)
                             .lineLimit(2...5)
                             .fieldStyle()

@@ -64,35 +64,105 @@ enum AlloFont {
         if weight == .heavy { return 800 }
         if weight == .bold { return 700 }
         if weight == .semibold { return 600 }
-        if weight == .medium { return 500 }
+        if weight == .medium { return 530 }
         if weight == .light { return 300 }
         if weight == .thin { return 200 }
         if weight == .ultraLight { return 100 }
-        return 400
+        // Allo's 400 reads thin on screen, so regular sits a little heavier.
+        return 450
     }
 
     /// Navigation bar titles in Allo.
     @MainActor
     static func applyAppearance() {
-        let large = uiFont(size: 34, weight: 700)
+        let large = uiFont(size: BoubaTextStyle.largeTitle.size, weight: 700)
         let inline = uiFont(size: 17, weight: 600)
-        UINavigationBar.appearance().largeTitleTextAttributes = [.font: large]
+        UINavigationBar.appearance().largeTitleTextAttributes = [.font: large, .kern: BoubaTextStyle.largeTitle.tracking]
         UINavigationBar.appearance().titleTextAttributes = [.font: inline]
     }
 }
 
-extension Font {
-    /// Allo at a given size and weight.
-    static func allo(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        Font(AlloFont.uiFont(size: size, weight: AlloFont.value(for: weight)) as CTFont)
+/// The app's type scale. Every piece of text picks a role; the role sets the size,
+/// and headings carry their own weight so a role is one decision, not three.
+enum BoubaTextStyle {
+    /// Tiny badges ("Soon", counts).
+    case caption
+    /// Small buttons, chips, notes.
+    case footnote
+    /// Secondary lines, labels, small row titles.
+    case subhead
+    /// Row titles and card text.
+    case callout
+    /// Default reading size.
+    case body
+    /// Section headings, card titles, primary button labels.
+    case title3
+    /// Screen-section headings.
+    case title2
+    /// Sheet and page titles.
+    case title
+    /// Onboarding and full-screen titles.
+    case largeTitle
+    /// Hero numbers and the wordmark.
+    case display
+
+    var size: CGFloat {
+        switch self {
+        case .caption: 12
+        case .footnote: 14
+        case .subhead: 15
+        case .callout: 16
+        case .body: 17
+        case .title3: 19
+        case .title2: 22
+        case .title: 28
+        case .largeTitle: 32
+        case .display: 44
+        }
     }
 
-    /// Text typed into inputs, a step heavier than body text. The name and phone fields go bigger.
-    static var alloInput: Font { allo(17, .medium) }
+    /// Large headings pull in slightly (-0.015em to -0.02em) so they read as one shape; text stays at 0.
+    var tracking: CGFloat {
+        switch self {
+        case .title: size * -0.015
+        case .largeTitle, .display: size * -0.02
+        default: 0
+        }
+    }
 
-    /// Gray secondary text: slightly heavier than regular (420) so it holds up at small sizes.
-    static func alloSubtext(_ size: CGFloat) -> Font {
-        Font(AlloFont.uiFont(size: size, weight: 420) as CTFont)
+    var defaultWeight: Font.Weight {
+        switch self {
+        case .caption, .title3: .semibold
+        case .title2, .title, .largeTitle, .display: .bold
+        case .footnote, .subhead, .callout, .body: .regular
+        }
+    }
+}
+
+extension View {
+    /// Sets a role's font and its tracking together. Use this for headings; `.font(.bouba(_:))` is fine for text.
+    func boubaFont(_ style: BoubaTextStyle, _ weight: Font.Weight? = nil) -> some View {
+        font(.bouba(style, weight)).tracking(style.tracking)
+    }
+}
+
+extension Font {
+    /// Allo at a role on the type scale, at the role's own weight unless one is given.
+    static func bouba(_ style: BoubaTextStyle, _ weight: Font.Weight? = nil) -> Font {
+        allo(style.size, weight ?? style.defaultWeight)
+    }
+
+    /// Gray secondary text: heavier than regular (470) so it holds up in gray at small sizes.
+    static func boubaSecondary(_ style: BoubaTextStyle) -> Font {
+        Font(AlloFont.uiFont(size: style.size, weight: 470) as CTFont)
+    }
+
+    /// Text typed into inputs, a step heavier than body text.
+    static var alloInput: Font { bouba(.body, .medium) }
+
+    /// Allo at an arbitrary size. Prefer `bouba(_:)`; this is for one-off display numerals.
+    static func allo(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        Font(AlloFont.uiFont(size: size, weight: AlloFont.value(for: weight)) as CTFont)
     }
 }
 
@@ -101,27 +171,39 @@ extension Font {
 extension ShapeStyle where Self == Color {
     /// The original orange, kept as the Food category color. Not the accent.
     static var petOrange: Color { Color(red: 1.0, green: 0.498, blue: 0.227) }
-    /// Brand accent, #E86018: a slightly deeper take on the original orange.
-    /// For borders, bands and other non-text marks; text and fills use the darker tokens below.
-    static var boubaOrange: Color { Color(red: 232/255, green: 96/255, blue: 24/255) }
+    /// Brand orange, #F86210: bright and saturated, and the brightest that keeps 3:1 on white,
+    /// so it can also mark selection (outlines, checkmarks, selected icons).
+    /// Never for text or behind white text: it doesn't reach 4.5:1.
+    static var boubaOrange: Color { Color(red: 248/255, green: 98/255, blue: 16/255) }
     static var boubaGreen: Color { Color(red: 0.13, green: 0.62, blue: 0.33) }
 
-    // Text tokens: each reaches 4.5:1 on white (cards and pages) in light mode.
-    // Dark mode uses a lighter tint so text still passes on dark backgrounds.
-    /// Accent for text and small icons: #C44400 (5.03:1 on white), lighter in dark mode (6.76:1).
-    static var boubaOrangeText: Color { adaptive(light: (196, 68, 0), dark: (255, 127, 58)) }
-    /// Accent fill behind white text (buttons, selected chips): #D04900, 4.53:1 with white,
-    /// the brightest orange that still passes. Text stays on the darker token above.
-    static var boubaOrangeFill: Color { adaptive(light: (208, 73, 0), dark: (208, 73, 0)) }
+    // Two accents. Ink is for actions (buttons, focus, emphasis). Brand orange is for progress,
+    // selection (outlines, checkmarks, selected chips and icons) and brand moments (avatars,
+    // illustrations, the welcome hero, the unread dot).
+    /// Action accent: #1F1B24 (16.9:1 on white), flipping to white in dark mode.
+    /// Works as text, icon and fill alike.
+    static var ink: Color { adaptive(light: (31, 27, 36), dark: (255, 255, 255)) }
+    /// Text and icons placed on an `ink` fill.
+    static var onInk: Color { adaptive(light: (255, 255, 255), dark: (31, 27, 36)) }
+    /// Toggles stay system green: an ink track would vanish behind the white knob in dark mode.
+    static var toggleTint: Color { Color(.systemGreen) }
+    /// Dark brand orange for text and icons on a light orange fill, like a selected tag.
+    /// 5.6:1 on white; a lighter orange in dark mode.
+    static var boubaOrangeText: Color { adaptive(light: (179, 66, 0), dark: (255, 150, 85)) }
     /// Green for text and small icons.
     static var boubaGreenText: Color { adaptive(light: (27, 131, 69), dark: (48, 209, 88)) }
+    /// Text on a pale green banner or capsule: 6:1 on the 10% green tint, where `boubaGreenText` only reaches 4.3:1.
+    static var onGreenTint: Color { adaptive(light: (20, 105, 55), dark: (110, 220, 140)) }
     /// Red for errors and warnings.
     static var dangerText: Color { adaptive(light: (200, 30, 30), dark: (255, 105, 97)) }
-    /// Secondary gray text: 4.85:1 on white, unlike the system's 60% gray.
-    static var textSecondary: Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark ? .secondaryLabel
-                                                       : UIColor(red: 113/255, green: 113/255, blue: 118/255, alpha: 1) })
-    }
+    // Gray text steps evenly between ink and the background, so secondary and tertiary
+    // read as two distinct levels rather than "gray" and "barely there".
+    /// Secondary gray text: 5.5:1 on white, 8.3:1 on black.
+    static var textSecondary: Color { adaptive(light: (104, 104, 110), dark: (162, 162, 168)) }
+
+    /// Tertiary gray for low-priority metadata such as timestamps: 3.3:1 on white, 4.7:1 on black, so
+    /// keep it to short, supporting text that never carries meaning on its own.
+    static var textTertiary: Color { adaptive(light: (140, 140, 146), dark: (118, 118, 124)) }
 
     private static func adaptive(light: (Int, Int, Int), dark: (Int, Int, Int)) -> Color {
         func ui(_ c: (Int, Int, Int)) -> UIColor {
@@ -131,6 +213,8 @@ extension ShapeStyle where Self == Color {
     }
     /// Gray fill for inputs: text fields, photo pickers, the date calendar.
     static var fieldFill: Color { Color(.systemGray6) }
+    /// Fill for cards you can't tap: lighter than input fields so read-only content sits back.
+    static var staticCardFill: Color { adaptive(light: (247, 247, 249), dark: (28, 28, 30)) }
 }
 
 // MARK: - Dates
@@ -147,6 +231,19 @@ extension Date {
     }
 
     var shortDay: String { formatted(.dateTime.month(.abbreviated).day()) }
+
+    /// Compact age for feeds: "now", "35m", "18h", "3d", "2w", "4mo", "1y".
+    var shortAgo: String {
+        let seconds = max(0, Date().timeIntervalSince(self))
+        let minutes = Int(seconds / 60), hours = minutes / 60, days = hours / 24
+        if minutes < 1 { return "now" }
+        if hours < 1 { return "\(minutes)m" }
+        if days < 1 { return "\(hours)h" }
+        if days < 7 { return "\(days)d" }
+        if days < 30 { return "\(days / 7)w" }
+        if days < 365 { return "\(days / 30)mo" }
+        return "\(days / 365)y"
+    }
 
     var startOfDay: Date { Calendar.current.startOfDay(for: self) }
 

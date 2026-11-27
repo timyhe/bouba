@@ -18,11 +18,12 @@ struct PetProfileView: View {
                 VStack(spacing: 16) {
                     header(pet)
 
-                    if !pet.notes.isEmpty {
-                        InfoCard(title: "About \(pet.name)", symbol: "heart.fill", tint: .pink) {
-                            ForEach(pet.notes) { note in
-                                KeyValueRow(symbol: note.symbol, label: note.title, value: note.body)
-                            }
+                    InfoCard(title: "About \(pet.name)", symbol: "heart.fill", tint: .pink) {
+                        KeyValueRow(symbol: "birthday.cake", label: "Age", value: "\(pet.age) year\(pet.age == 1 ? "" : "s") old")
+                        KeyValueRow(symbol: "ruler", label: "Size", value: pet.size.label)
+                        KeyValueRow(symbol: pet.species.symbol, label: "Species", value: pet.species.label)
+                        ForEach(pet.notes) { note in
+                            KeyValueRow(symbol: note.symbol, label: note.title, value: note.body)
                         }
                     }
 
@@ -76,7 +77,7 @@ struct PetProfileView: View {
                     } else {
                         Button { showMeet = true } label: {
                             Label("Replay \u{201C}Meet \(pet.name)\u{201D}", systemImage: "rectangle.stack.fill")
-                                .font(.allo(16, .semibold))
+                                .font(.bouba(.callout, .semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 4)
                         }
@@ -91,7 +92,7 @@ struct PetProfileView: View {
             .toolbar {
                 if store.isOwner {
                     ToolbarItem(placement: .primaryAction) {
-                        Button { showEdit = true } label: { Text("Edit").font(.allo(17, .medium)) }
+                        Button { showEdit = true } label: { Text("Edit").font(.bouba(.body, .medium)) }
                     }
                 }
             }
@@ -112,29 +113,13 @@ struct PetProfileView: View {
         VStack(spacing: 12) {
             PetAvatar(pet: pet, size: 116)
             VStack(spacing: 4) {
-                Text(pet.name).font(.allo(34, .bold))
+                Text(pet.name).boubaFont(.largeTitle)
                 Text(pet.breed.isEmpty ? pet.species.label : pet.breed)
-                    .font(.alloSubtext(18))
+                    .font(.boubaSecondary(.body))
                     .foregroundStyle(Color.textSecondary)
             }
-            HStack(spacing: 10) {
-                fact("\(pet.age)", "years old")
-                fact(pet.size.label, "size")
-                fact(pet.species.label, "species")
-            }
-            .padding(.top, 4)
         }
         .padding(.vertical, 8)
-    }
-
-    private func fact(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.allo(20, .bold))
-            Text(label).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func caretakersCard(_ pet: Pet) -> some View {
@@ -142,8 +127,8 @@ struct PetProfileView: View {
             HStack(spacing: InfoCardMetrics.gap) {
                 InitialsAvatar(name: store.ownerName, color: .boubaOrange, size: InfoCardMetrics.iconColumn)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(store.ownerName) (you)").font(.allo(16, .semibold))
-                    Text("Owner").font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                    Text("\(store.ownerName) (you)").font(.bouba(.callout, .semibold))
+                    Text("Owner").font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
             }
@@ -152,9 +137,9 @@ struct PetProfileView: View {
                     HStack(spacing: InfoCardMetrics.gap) {
                         InitialsAvatar(name: c.name, color: c.color, size: InfoCardMetrics.iconColumn)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(c.name).font(.allo(16, .semibold))
+                            Text(c.name).font(.bouba(.callout, .semibold))
                             Text(c.role.label)
-                                .font(.alloSubtext(15))
+                                .font(.boubaSecondary(.subhead))
                                 .foregroundStyle(Color.textSecondary)
                         }
                         Spacer()
@@ -170,7 +155,7 @@ struct PetProfileView: View {
         } accessory: {
             Button { showInvite = true } label: {
                 Label("Invite", systemImage: "plus")
-                    .font(.allo(14, .semibold))
+                    .font(.bouba(.footnote, .semibold))
             }
             .buttonStyle(.glass)
             .controlSize(.small)
@@ -201,7 +186,7 @@ struct EditPetSheet: View {
                         PhotosPicker(selection: $photoItem, matching: .images) {
                             VStack(spacing: 8) {
                                 PetAvatar(pet: draft, size: 100)
-                                Text("Change photo").font(.allo(14, .semibold))
+                                Text("Change photo").font(.bouba(.footnote, .semibold))
                             }
                         }
                         .buttonStyle(.plain)
@@ -210,7 +195,7 @@ struct EditPetSheet: View {
                 }
                 .listRowBackground(Color.clear)
 
-                Section("Basics") {
+                Section(styledHeader: "Basics") {
                     TextField("Name", text: $draft.name).font(.alloInput)
                     Picker("Species", selection: $draft.species) {
                         ForEach(Species.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
@@ -223,10 +208,10 @@ struct EditPetSheet: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("About") {
+                Section(styledHeader: "About") {
                     ForEach($draft.notes) { $note in
                         VStack(alignment: .leading, spacing: 4) {
-                            TextField("Title", text: $note.title).font(.allo(16, .semibold))
+                            TextField("Title", text: $note.title).font(.bouba(.callout, .semibold))
                             TextField("Details", text: $note.body, axis: .vertical).font(.alloInput)
                                 .foregroundStyle(Color.textSecondary)
                         }
@@ -237,11 +222,11 @@ struct EditPetSheet: View {
                     }
                 }
 
-                Section("Must not eat") {
+                Section(styledHeader: "Must not eat") {
                     if !draft.mustNotEat.isEmpty {
                         FlowLayout {
                             ForEach(draft.mustNotEat, id: \.self) { item in
-                                Chip(label: item, symbol: "xmark", isSelected: true, tint: .dangerText) {
+                                Chip(label: item, symbol: "xmark", isSelected: true, tint: .dangerText, selectedText: .dangerText) {
                                     withAnimation { draft.mustNotEat.removeAll { $0 == item } }
                                 }
                             }
@@ -256,7 +241,7 @@ struct EditPetSheet: View {
                     }
                 }
 
-                Section("Home access") {
+                Section(styledHeader: "Home access") {
                     TextField("Address", text: $draft.home.address, axis: .vertical).font(.alloInput)
                     TextField("How to get in", text: $draft.home.entry).font(.alloInput)
                     TextField("Door or lockbox code", text: $draft.home.code).font(.alloInput)
@@ -275,9 +260,9 @@ struct EditPetSheet: View {
                     }
                     TextField("Medical notes", text: $draft.medical, axis: .vertical).font(.alloInput)
                 } header: {
-                    Text("Vet & emergency")
+                    Text("Vet & emergency").formHeaderStyle()
                 } footer: {
-                    Text("Caretakers see this from the \(Image(systemName: "exclamationmark.triangle")) button on the Activity screen.")
+                    Text("Caretakers see this from the \(Image(systemName: "exclamationmark.triangle")) button on the Activity screen.").formFooterStyle()
                 }
             }
             .navigationTitle("Edit \(draft.name)")

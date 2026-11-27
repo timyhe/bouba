@@ -402,4 +402,7 @@ struct AppNotification: Identifiable {
     var color: Color
     var title: String
     var body: String
+    /// Who it's about, shown as their photo or initial beside the action icon.
+    var actor: String? = nil
+    var actorColor: Color = .boubaOrange
 }

@@ -10,6 +10,7 @@ struct JoinInviteView: View {
     @State private var code = ""
     @State private var showMeet = false
     @State private var invalid = false
+    @State private var joinAttempts = 0
 
     private var normalizedCode: String {
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -19,9 +20,9 @@ struct JoinInviteView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Join with an invite").font(.allo(32, .bold))
+                Text("Join with an invite").boubaFont(.largeTitle)
                 Text("Paste the link the owner sent you, or type the 6-character code.")
-                    .font(.alloSubtext(18))
+                    .font(.boubaSecondary(.body))
                     .foregroundStyle(Color.textSecondary)
             }
 
@@ -38,25 +39,26 @@ struct JoinInviteView: View {
                 Button("Paste", systemImage: "doc.on.clipboard") {
                     code = UIPasteboard.general.string ?? ""
                 }
-                .font(.allo(15, .semibold))
+                .font(.bouba(.subhead, .semibold))
                 .buttonStyle(.glass)
                 .tint(Color.primary)
 
                 Button("Use demo code") { code = "bouba.app/join/FX7K2Q" }
-                    .font(.allo(15, .semibold))
+                    .font(.bouba(.subhead, .semibold))
                     .buttonStyle(.glass)
                     .tint(Color.primary)
             }
 
             if invalid {
                 Text("Enter the 6-character code from your invite, like FX7K2Q.")
-                    .font(.allo(14))
+                    .font(.bouba(.footnote))
                     .foregroundStyle(Color.dangerText)
             }
 
             Spacer()
 
-            PrimaryButton(title: "Join") {
+            PrimaryButton(title: "Join", haptic: nil) {
+                joinAttempts += 1
                 if normalizedCode.count == 6 {
                     invalid = false
                     // During onboarding the intro opens as a modal from the root; joining
@@ -67,7 +69,8 @@ struct JoinInviteView: View {
                 }
             }
             .disabled(code.isEmpty)
-            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: invalid)
+            // Joining feels like any primary step; a bad code gets the error haptic instead, never both.
+            .sensoryFeedback(trigger: joinAttempts) { _, _ in invalid ? .boubaError : .boubaPrimary }
         }
         .padding(24)
         .background(OnboardingBackground())
@@ -142,10 +145,10 @@ struct MeetThePetView: View {
                 Button(role: .close) { dismiss() }
             }
             ToolbarItem(placement: .principal) {
-                Text("Meet \(pet.name)").font(.allo(17, .semibold))
+                Text("Meet \(pet.name)").font(.bouba(.body, .semibold))
             }
         }
-        .sensoryFeedback(trigger: pastThreshold) { _, crossed in crossed ? .impact(flexibility: .soft, intensity: 0.7) : nil }
+        .sensoryFeedback(trigger: pastThreshold) { _, crossed in crossed ? .boubaSelect : nil }
     }
 
     // MARK: Stack
@@ -216,10 +219,10 @@ struct MeetThePetView: View {
             PetAvatar(pet: pet, size: 120)
                 .padding(.vertical, 4)
             Text(pet.subtitle)
-                .font(.allo(17, .semibold))
+                .font(.bouba(.body, .semibold))
             if let personality = pet.notes.first {
                 Text(personality.body)
-                    .font(.alloSubtext(17))
+                    .font(.boubaSecondary(.body))
                     .foregroundStyle(Color.textSecondary)
             }
         }
@@ -230,9 +233,9 @@ struct MeetThePetView: View {
             ForEach(pet.tasks.sorted { $0.minutesOfDay < $1.minutesOfDay }.prefix(7)) { task in
                 HStack(spacing: 12) {
                     IconTile(kind: task.kind, size: 32)
-                    Text(task.title).font(.allo(15, .semibold)).lineLimit(1)
+                    Text(task.title).font(.bouba(.subhead, .semibold)).lineLimit(1)
                     Spacer(minLength: 4)
-                    Text(task.timeString).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                    Text(task.timeString).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                 }
             }
         }
@@ -244,15 +247,15 @@ struct MeetThePetView: View {
                 HStack(alignment: .top, spacing: 12) {
                     IconTile(kind: task.kind, size: 32)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(task.title) · \(task.timeString)").font(.allo(15, .semibold))
+                        Text("\(task.title) · \(task.timeString)").font(.bouba(.subhead, .semibold))
                         if !task.instructions.isEmpty {
-                            Text(task.instructions).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary).lineLimit(3)
+                            Text(task.instructions).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary).lineLimit(3)
                         }
                     }
                 }
             }
             if !pet.mustNotEat.isEmpty {
-                Text("Never feed me").font(.allo(15, .semibold)).padding(.top, 4)
+                Text("Never feed me").font(.bouba(.subhead, .semibold)).padding(.top, 4)
                 FlowLayout {
                     ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .dangerText, symbol: "xmark") }
                 }
@@ -277,11 +280,12 @@ struct MeetThePetView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: pet.vet.permission.symbol)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.boubaGreenText)
+                    .foregroundStyle(Color.onGreenTint)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(pet.vet.permission.label).font(.allo(15, .semibold))
-                    Text(pet.vet.permission.detail).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                    Text(pet.vet.permission.label).font(.bouba(.subhead, .semibold))
+                    Text(pet.vet.permission.detail).font(.boubaSecondary(.subhead))
                 }
+                .foregroundStyle(Color.onGreenTint)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -303,7 +307,7 @@ private struct MeetCard<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 32, style: .continuous)
         let stack = VStack(alignment: .leading, spacing: 14) {
-            Text(title).font(.allo(26, .bold))
+            Text(title).boubaFont(.title)
             content
         }
         .padding(22)

@@ -86,7 +86,8 @@ final class AppStore {
             notifications.insert(
                 AppNotification(date: Date(), symbol: task.kind.symbol, color: task.kind.color,
                                 title: "\(sitterName) completed \(task.title)",
-                                body: "\(pet.name)'s \(task.title.lowercased()) is done."),
+                                body: "\(pet.name)'s \(task.title.lowercased()) is done.",
+                                actor: sitterName),
                 at: 0)
             hasUnreadNotifications = true
         }
@@ -132,7 +133,8 @@ final class AppStore {
             notifications.insert(
                 AppNotification(date: Date(), symbol: "camera.fill", color: .pink,
                                 title: "\(sitterName) shared an update",
-                                body: update.text.isEmpty ? "\(update.photos.count) new photo\(update.photos.count == 1 ? "" : "s") of \(pet.name)" : update.text),
+                                body: update.text.isEmpty ? "\(update.photos.count) new photo\(update.photos.count == 1 ? "" : "s") of \(pet.name)" : update.text,
+                                actor: sitterName),
                 at: 0)
             hasUnreadNotifications = true
         }
@@ -252,6 +254,7 @@ extension AppStore {
 
         return Pet(
             name: "Felix", species: .dog, breed: "Goldendoodle", age: 8, size: .medium,
+            photo: UIImage(named: "pet-felix"),
             color: .boubaOrange,
             tasks: tasks.byTime,
             notes: [
@@ -309,11 +312,11 @@ extension AppStore {
         let now = Date()
         return [
             AppNotification(date: now.adding(minutes: -35), symbol: "fork.knife", color: .petOrange,
-                            title: "Andrew completed Breakfast", body: "Felix ate it all."),
+                            title: "Andrew completed Breakfast", body: "Felix ate it all.", actor: "Andrew", actorColor: .purple),
             AppNotification(date: now.adding(minutes: -60 * 18), symbol: "camera.fill", color: .pink,
-                            title: "Andrew shared 2 photos", body: "Felix made a new best friend at the dog run!"),
+                            title: "Andrew shared 2 photos", body: "Felix made a new best friend at the dog run!", actor: "Andrew", actorColor: .purple),
             AppNotification(date: now.adding(minutes: -60 * 26), symbol: "person.badge.plus", color: .blue,
-                            title: "Andrew joined Felix's care team", body: "Access through \(Date().adding(days: 3).shortDay)."),
+                            title: "Andrew joined Felix's care team", body: "Access through \(Date().adding(days: 3).shortDay).", actor: "Andrew", actorColor: .purple),
         ]
     }
 }

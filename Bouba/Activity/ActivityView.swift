@@ -25,6 +25,11 @@ struct ActivityView: View {
     @State private var detailsFor: CompletionToast?
     /// Task cards currently on screen, so the Next task pill knows when the next one is out of view.
     @State private var visibleTasks: Set<UUID> = []
+    /// How far the day has been dragged sideways; the content follows the finger.
+    @State private var dayDrag: CGFloat = 0
+    /// True once a drag passes the point where letting go changes the date.
+    @State private var swipeArmed = false
+    @State private var todayTaps = 0
 
     var body: some View {
         let pet = store.pet
@@ -45,32 +50,46 @@ struct ActivityView: View {
                                 taskGrid(pet.tasks)
                             }
 
-                            if store.isOwner {
+                            if store.isOwner && pet.tasks.isEmpty {
                                 addTaskButton
                             }
                         }
                         .id(store.selectedDate)
                         .transition(reduceMotion ? .opacity : .push(from: store.dateSlideEdge))
                     }
-                    .contentShape(Rectangle())
-                    // Swipe left or right anywhere on the day to move to the next or previous date.
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 24)
-                            .onEnded { value in
-                                let dx = value.translation.width, dy = value.translation.height
-                                guard abs(dx) > 60, abs(dx) > abs(dy) * 1.5 else { return }
-                                let next = store.selectedDate.startOfDay.adding(days: dx < 0 ? 1 : -1)
-                                guard let first = WeekStrip.days.first, let last = WeekStrip.days.last,
-                                      next >= first, next <= last else { return }
-                                store.selectDate(next)
-                            }
-                    )
+                    .offset(x: dayDrag)
                     .animation(.snappy(duration: 0.32), value: store.selectedDate)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 40)
             }
             .scrollIndicators(.hidden)
+            // Swipe left or right anywhere on the page, cards and blank space alike, to move to the next or previous date.
+            // The day follows the finger; past the threshold it ticks once, and letting go
+            // there (or flicking) changes the date, otherwise it springs back.
+            // A UIKit pan that only starts on a horizontal swipe, so vertical swipes still
+            // scroll the page (a SwiftUI DragGesture here swallowed them).
+            .gesture(HorizontalSwipe(
+                onChanged: { dx in
+                    if neighborDay(for: dx) == nil {
+                        // No day that way: resist, and never arm.
+                        dayDrag = dx * 0.25
+                        swipeArmed = false
+                    } else {
+                        dayDrag = dx
+                        swipeArmed = abs(dx) > Self.swipeThreshold
+                    }
+                },
+                onEnded: { dx, speed in
+                    let flick = abs(dx) > 20 && abs(speed) > 600 && (dx < 0) == (speed < 0)
+                    if let next = neighborDay(for: dx), abs(dx) > Self.swipeThreshold || flick {
+                        // The new day pushes in while the drag offset settles back to zero.
+                        store.selectDate(next)
+                    }
+                    withAnimation(.spring(duration: 0.35, bounce: 0)) { dayDrag = 0 }
+                    swipeArmed = false
+                }))
+            .sensoryFeedback(trigger: swipeArmed) { _, armed in armed ? .boubaSelect : nil }
             .background(Color(.systemBackground))
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .bottom) {
@@ -88,7 +107,8 @@ struct ActivityView: View {
           }
             // The toast carries an action, so it stays until dismissed or the day changes.
             .onChange(of: store.selectedDate) { toast = nil }
-            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: toast)
+            // Completing a task is the app's main action. Only on completion, not when the toast goes away.
+            .sensoryFeedback(trigger: toast) { _, new in new == nil ? nil : .boubaPrimary }
             .sheet(isPresented: $showEmergency) { EmergencySheet().solidSheet() }
             .sheet(isPresented: $showNotifications) { NotificationsSheet().solidSheet() }
             .sheet(isPresented: $showPostUpdate) { PostUpdateSheet().solidSheet() }
@@ -126,7 +146,7 @@ struct ActivityView: View {
                 HStack(spacing: 12) {
                     PetAvatar(pet: store.pet, size: 46)  // matches the 46pt header buttons
                     Text(store.pet.name)
-                        .font(.allo(28, .bold))
+                        .boubaFont(.title)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -144,16 +164,7 @@ struct ActivityView: View {
                     headerButton("camera", label: "Post update") { showPostUpdate = true }
                 }
                 headerButton("exclamationmark.triangle", label: "Emergency info") { showEmergency = true }
-                headerButton("bell", label: "Notifications") { showNotifications = true }
-                    .overlay(alignment: .topTrailing) {
-                        if store.hasUnreadNotifications {
-                            Circle()
-                                .fill(Color.boubaOrange)
-                                .frame(width: 9, height: 9)
-                                .offset(x: -12, y: 12)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                headerButton("bell", label: "Notifications", badge: store.hasUnreadNotifications) { showNotifications = true }
             }
             .padding(.horizontal, 4)
             .glassEffect(.regular.interactive(), in: .capsule)
@@ -161,12 +172,35 @@ struct ActivityView: View {
         .padding(.top, 8)
     }
 
-    private func headerButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+    private func headerButton(_ symbol: String, label: String, badge: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(.primary)
                 .frame(width: 46, height: 46)
+                // The unread dot sits in a gap cut out of the icon, so whatever is behind it
+                // (the glass) shows through, instead of a painted ring that never quite matches.
+                .mask {
+                    Rectangle()
+                        .overlay(alignment: .topTrailing) {
+                            if badge {
+                                Circle()
+                                    .frame(width: 13, height: 13)
+                                    .offset(x: -10, y: 10)
+                                    .blendMode(.destinationOut)
+                            }
+                        }
+                        .compositingGroup()
+                }
+                .overlay(alignment: .topTrailing) {
+                    if badge {
+                        Circle()
+                            .fill(Color.boubaOrange)
+                            .frame(width: 9, height: 9)
+                            .offset(x: -12, y: 12)
+                    }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -180,6 +214,9 @@ struct ActivityView: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             ForEach(tasks) { task in
                 trackedCard(task, in: tasks)
+            }
+            if store.isOwner {
+                addTaskButton
             }
         }
         // A drop that lands between cards still ends the drag.
@@ -245,17 +282,35 @@ struct ActivityView: View {
         }
     }
 
+    /// Sits in the grid as one more card: same corner, and sized by an invisible copy of a
+    /// task card's layout so it always matches its neighbours, with or without an action button.
     private var addTaskButton: some View {
         Button { newTask = blankTask() } label: {
-            Label("Add a task", systemImage: "plus")
-                .font(.allo(16, .semibold))
-                .foregroundStyle(Color.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .strokeBorder(Color(.systemGray4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-                )
+            VStack(alignment: .leading, spacing: 0) {
+                Color.clear.frame(height: 44)
+                Spacer(minLength: 12)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(" ").font(.bouba(.callout, .semibold))
+                    Text(" ").font(.boubaSecondary(.subhead))
+                }
+                if store.selectedDate.startOfDay <= Date().startOfDay {
+                    Spacer(minLength: 12)
+                    Color.clear.frame(height: 44)
+                }
+            }
+            .hidden()
+            .frame(maxWidth: .infinity)
+            .padding(12)
+            .overlay {
+                Label("Add a task", systemImage: "plus")
+                    .font(.bouba(.callout, .semibold))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color(.systemGray4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(PressableStyle())
     }
@@ -265,7 +320,7 @@ struct ActivityView: View {
             Label("No tasks yet", systemImage: "checklist")
         } description: {
             Text("Add feeding, walks, meds and anything else \(store.pet.name) needs.")
-                .font(.alloSubtext(18))
+                .font(.boubaSecondary(.body))
         }
         .padding(.vertical, 30)
     }
@@ -301,7 +356,7 @@ struct ActivityView: View {
                 }
             } label: {
                 Label("Next task", systemImage: index > lastVisible ? "arrow.down" : "arrow.up")
-                    .font(.allo(15, .semibold))
+                    .font(.bouba(.subhead, .semibold))
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 16)
                     .frame(minHeight: 44)
@@ -314,16 +369,28 @@ struct ActivityView: View {
         }
     }
 
+    static let swipeThreshold: CGFloat = 80
+
+    /// The day a horizontal drag of `dx` leads to, or nil past the ends of the week strip.
+    private func neighborDay(for dx: CGFloat) -> Date? {
+        guard dx != 0 else { return nil }
+        let next = store.selectedDate.startOfDay.adding(days: dx < 0 ? 1 : -1)
+        guard let first = WeekStrip.days.first, let last = WeekStrip.days.last,
+              next >= first, next <= last else { return nil }
+        return next
+    }
+
     // MARK: Back to today
 
     /// Appears once you leave today and takes you straight back.
     @ViewBuilder private var backToTodayButton: some View {
         if !Calendar.current.isDateInToday(store.selectedDate) {
             Button {
+                todayTaps += 1
                 store.selectDate(Date().startOfDay)
             } label: {
                 Label("Back to today", systemImage: "arrow.uturn.backward")
-                    .font(.allo(15, .semibold))
+                    .font(.bouba(.subhead, .semibold))
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 16)
                     .frame(minHeight: 44)
@@ -331,6 +398,7 @@ struct ActivityView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .capsule)
+            .sensoryFeedback(.boubaSelect, trigger: todayTaps)
             .transition(reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
         }
     }
@@ -344,7 +412,7 @@ struct ActivityView: View {
                     .font(.system(size: 22))
                     .foregroundStyle(Color.boubaGreen)
                 Text("Done!")
-                    .font(.allo(16, .semibold))
+                    .font(.bouba(.callout, .semibold))
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 Button {
@@ -352,7 +420,7 @@ struct ActivityView: View {
                     withAnimation(.snappy) { self.toast = nil }
                 } label: {
                     Label("Add photo or note", systemImage: "camera.fill")
-                        .font(.allo(14, .semibold))
+                        .font(.bouba(.footnote, .semibold))
                 }
                 .buttonStyle(.glassProminent)
                 Button {
@@ -423,11 +491,11 @@ struct TaskCard: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(task.title)
-                    .font(.allo(16, .semibold))
+                    .font(.bouba(.callout, .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Text(statusText)
-                    .font(.alloSubtext(15))
+                    .font(.boubaSecondary(.subhead))
                     .foregroundStyle(isLate && completion == nil ? Color.dangerText : Color.textSecondary)
                     .lineLimit(1)
             }
@@ -478,9 +546,9 @@ struct CardButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.allo(16, .semibold))
+            .font(.bouba(.callout, .semibold))
             .labelStyle(CardButtonLabelStyle(isDone: isDone))
-            .foregroundStyle(isDone ? Color.boubaGreenText : Color.primary)
+            .foregroundStyle(isDone ? Color.onGreenTint : Color.primary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity, minHeight: 44)
@@ -517,19 +585,21 @@ struct WeekStrip: View {
     @State private var scrolledDay: Date?
     /// Days currently on screen, so a swipe to an off-screen day scrolls it into view.
     @State private var visibleDays: Set<Date> = []
+    @State private var taps = 0
 
     static let days: [Date] = (-7...13).map { Date().startOfDay.adding(days: $0) }
     private var days: [Date] { Self.days }
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach(days, id: \.self) { day in
                     DayCell(day: day,
                             isSelected: Calendar.current.isDate(day, inSameDayAs: store.selectedDate),
                             carers: carers(on: day),
                             selection: selection)
                         .onTapGesture {
+                            if !Calendar.current.isDate(day, inSameDayAs: store.selectedDate) { taps += 1 }
                             store.selectDate(day)
                         }
                         .onScrollVisibilityChange(threshold: 0.9) { visible in
@@ -549,7 +619,8 @@ struct WeekStrip: View {
         .onAppear {
             if scrolledDay == nil { scrolledDay = Date().startOfDay }
         }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: store.selectedDate)
+        // Taps tick here; Back to today and the day swipe play their own.
+        .sensoryFeedback(.boubaSelect, trigger: taps)
         // "Back to today" brings today back into view too.
         .onChange(of: store.selectedDate) { _, day in
             if Calendar.current.isDateInToday(day) {
@@ -593,7 +664,17 @@ private struct DayCell: View {
     /// Shared with the other cells so the selected tile slides between dates.
     let selection: Namespace.ID
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private let avatarSize: CGFloat = 16
+
+    /// The avatars rise out of the date as they appear and sink back into it as they leave.
+    private var pileTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .offset(y: 8).combined(with: .scale(scale: 0.9, anchor: .bottom)).combined(with: .opacity),
+            removal: .offset(y: 6).combined(with: .opacity))
+    }
 
     /// Only the selected day shows who's caring.
     private var showsPile: Bool { !carers.isEmpty && isSelected }
@@ -611,10 +692,10 @@ private struct DayCell: View {
         // Allo's line height leaves a big gap between lines, so pull the date up.
         VStack(spacing: -2) {
             Text(day.formatted(.dateTime.weekday(.abbreviated)).uppercased())
-                .font(.allo(15, .semibold))
+                .font(.bouba(.subhead, .semibold))
                 .foregroundStyle(isSelected ? Color.dangerText : Color.secondary)
             Text(day.formatted(.dateTime.day()))
-                .font(.allo(30, .semibold))
+                .font(.allo(30, .semibold)) // Date numeral: a one-off display size between title and largeTitle.
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
         }
         // Nudge the text down a touch so it clears the avatars sitting on the top edge.
@@ -635,7 +716,7 @@ private struct DayCell: View {
             if showsPile {
                 facepile
                     .offset(y: -pileHeight / 2)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    .transition(pileTransition)
             }
         }
         .padding(.top, pileHeight / 2)
@@ -699,5 +780,60 @@ private struct TaskDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         dragging = nil
         return true
+    }
+}
+
+/// A horizontal swipe that never competes with vertical scrolling: it declines to start unless the
+/// finger is moving mostly sideways, and runs alongside the scroll view's own pan.
+struct HorizontalSwipe: UIGestureRecognizerRepresentable {
+    /// The horizontal distance so far; negative is toward the left.
+    var onChanged: (CGFloat) -> Void
+    /// The final distance and horizontal speed when the finger lifts (or the pan is cancelled).
+    var onEnded: (CGFloat, CGFloat) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan = UIPanGestureRecognizer()
+        pan.delegate = context.coordinator
+        return pan
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let distance = recognizer.translation(in: recognizer.view).x
+        switch recognizer.state {
+        case .began, .changed:
+            onChanged(distance)
+        case .ended:
+            onEnded(distance, recognizer.velocity(in: recognizer.view).x)
+        case .cancelled, .failed:
+            onEnded(0, 0)
+        default:
+            break
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer, let view = pan.view else { return false }
+            let velocity = pan.velocity(in: view)
+            guard abs(velocity.x) > abs(velocity.y) * 1.5 else { return false }
+            // Leave sideways scrollers (the week strip) to scroll themselves.
+            var hit = view.hitTest(pan.location(in: view), with: nil)
+            while let current = hit, current !== view {
+                if let scroll = current as? UIScrollView, scroll.contentSize.width > scroll.bounds.width + 1 {
+                    return false
+                }
+                hit = current.superview
+            }
+            return true
+        }
+
+        // Only the page's own vertical scroll runs alongside the swipe. Taps on cards and buttons
+        // don't, so once a swipe starts they're cancelled instead of firing when the finger lifts.
+        func gestureRecognizer(_ recognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            other.view is UIScrollView && other is UIPanGestureRecognizer
+        }
     }
 }

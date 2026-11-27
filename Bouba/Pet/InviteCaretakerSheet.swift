@@ -55,12 +55,12 @@ struct InviteCaretakerSheet: View {
 
     private var form: some View {
         Form {
-            Section("Who's helping?") {
+            Section(styledHeader: "Who's helping?") {
                 TextField("Their name", text: $draft.name).font(.alloInput)
                     .textContentType(.name)
             }
 
-            Section("Role") {
+            Section(styledHeader: "Role") {
                 ForEach(CaretakerRole.allCases) { role in
                     Button {
                         withAnimation(.snappy) {
@@ -71,21 +71,23 @@ struct InviteCaretakerSheet: View {
                         HStack(spacing: 14) {
                             Image(systemName: role.symbol)
                                 .font(.system(size: 20))
-                                .foregroundStyle(Color.boubaOrangeText)
+                                .foregroundStyle(Color.boubaOrange)
                                 .frame(width: 30)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(role.label).font(.allo(16, .semibold))
-                                Text(role.detail).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                                Text(role.label).font(.bouba(.callout, .semibold))
+                                Text(role.detail).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                             }
                             Spacer()
                             Image(systemName: draft.role == role ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
-                                .foregroundStyle(draft.role == role ? Color.boubaOrangeText : Color(.systemGray3))
+                                .foregroundStyle(draft.role == role ? Color.boubaOrange : Color(.systemGray3))
                                 .instantSelection()
                         }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // Only the row that becomes selected plays it, so a change gives one haptic.
+                    .sensoryFeedback(trigger: draft.role) { _, new in new == role ? .boubaSelect : nil }
                 }
             }
 
@@ -96,35 +98,35 @@ struct InviteCaretakerSheet: View {
                     Stepper("Early access: \(draft.earlyAccessDays) day\(draft.earlyAccessDays == 1 ? "" : "s") before",
                             value: $draft.earlyAccessDays, in: 0...7)
                 } header: {
-                    Text("When")
+                    Text("When").formHeaderStyle()
                 } footer: {
-                    Text("They can review \(store.pet.name)'s instructions from \(draft.start.adding(days: -draft.earlyAccessDays).shortDay). Access ends automatically after \(draft.end.shortDay).")
+                    Text("They can review \(store.pet.name)'s instructions from \(draft.start.adding(days: -draft.earlyAccessDays).shortDay). Access ends automatically after \(draft.end.shortDay).").formFooterStyle()
                 }
             }
 
             Section {
                 Toggle("Notify me when tasks are done", isOn: $draft.notifyOnComplete)
-                    .tint(Color.boubaOrange)
+                    .tint(Color.toggleTint)
                 Picker("Photo updates", selection: $draft.photoFrequency) {
                     ForEach(PhotoFrequency.allCases) { Text($0.label).tag($0) }
                 }
                 Toggle("Check in & out of visits", isOn: $draft.checkInOut)
-                    .tint(Color.boubaOrange)
+                    .tint(Color.toggleTint)
             } header: {
-                Text("Updates you'd like")
+                Text("Updates you'd like").formHeaderStyle()
             } footer: {
-                Text("We'll let \(draft.name.isEmpty ? "them" : draft.name) know what you're hoping for, so nobody has to ask.")
+                Text("We'll let \(draft.name.isEmpty ? "them" : draft.name) know what you're hoping for, so nobody has to ask.").formFooterStyle()
             }
 
-            Section("Permissions") {
+            Section(styledHeader: "Permissions") {
                 Toggle("Can add & edit tasks", isOn: $draft.canEditTasks)
-                    .tint(Color.boubaOrange)
+                    .tint(Color.toggleTint)
                 Toggle("Show home access details", isOn: $draft.showHomeAccess)
-                    .tint(Color.boubaOrange)
+                    .tint(Color.toggleTint)
             }
 
             if !isNew {
-                Section("Invite") {
+                Section(styledHeader: "Invite") {
                     ShareLink(item: draft.inviteURL,
                               subject: Text("Help care for \(store.pet.name)"),
                               message: Text(inviteMessage)) {
@@ -171,9 +173,9 @@ struct InviteReadyView: View {
                     .symbolEffect(.bounce, options: .nonRepeating)
             }
             VStack(spacing: 8) {
-                Text("Invite ready!").font(.allo(30, .bold))
+                Text("Invite ready!").boubaFont(.largeTitle)
                 Text("Send this link to \(caretaker.name). They'll meet \(petName) and see everything you've set up.")
-                    .font(.alloSubtext(18))
+                    .font(.boubaSecondary(.body))
                     .foregroundStyle(Color.textSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -181,9 +183,9 @@ struct InviteReadyView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("bouba.app/join/\(caretaker.inviteCode)")
-                        .font(.allo(17, .semibold))
+                        .font(.bouba(.body, .semibold))
                     Text(caretaker.role == .temporary ? "\(caretaker.role.label) · \(caretaker.accessSummary)" : caretaker.role.label)
-                        .font(.alloSubtext(15))
+                        .font(.boubaSecondary(.subhead))
                         .foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
@@ -197,7 +199,7 @@ struct InviteReadyView: View {
                 }
                 .buttonStyle(.glass)
                 .accessibilityLabel(copied ? "Invite link copied" : "Copy invite link")
-                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: copied)
+                .copiedFeedback($copied)
             }
             .fieldStyle()
 
@@ -208,7 +210,7 @@ struct InviteReadyView: View {
                           subject: Text("Help care for \(petName)"),
                           message: Text(message)) {
                     Label("Share invite", systemImage: "square.and.arrow.up")
-                        .font(.allo(19, .semibold))
+                        .font(.bouba(.title3))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
@@ -216,7 +218,7 @@ struct InviteReadyView: View {
                 .controlSize(.large)
 
                 Button("Done", action: onDone)
-                    .font(.allo(16, .semibold))
+                    .font(.bouba(.callout, .semibold))
                     .buttonStyle(.glass)
                     .controlSize(.large)
             }

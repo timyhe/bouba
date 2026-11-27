@@ -1,0 +1,6 @@
+{
+  "images" : [
+    { "filename" : "pet-felix.jpg", "idiom" : "universal" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

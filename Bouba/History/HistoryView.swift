@@ -100,7 +100,7 @@ struct HistoryView: View {
 
                     ForEach(groups) { group in
                         Text(group.day.relativeDay)
-                            .font(.allo(21, .bold))
+                            .font(.bouba(.title2))
                             .padding(.top, 12)
                         ForEach(group.items) { item in
                             switch item {
@@ -138,8 +138,8 @@ private struct HistoryCompletionRow: View {
         HStack(alignment: .top, spacing: 12) {
             IconTile(kind: task.kind, size: 40)
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(Text(completion.by).font(.allo(16, .semibold))) completed \(Text(task.title).font(.allo(16, .semibold)))")
-                    .font(.allo(16))
+                Text("\(Text(completion.by).font(.bouba(.callout, .semibold))) completed \(Text(task.title).font(.bouba(.callout, .semibold)))")
+                    .font(.bouba(.callout))
                 HStack(spacing: 6) {
                     Text(completion.date.timeString)
                     if let option = completion.option {
@@ -147,10 +147,10 @@ private struct HistoryCompletionRow: View {
                         Text(option)
                     }
                 }
-                .font(.alloSubtext(16))
+                .font(.boubaSecondary(.callout))
                 .foregroundStyle(Color.textSecondary)
                 if !completion.note.isEmpty {
-                    Text(completion.note).font(.allo(15))
+                    Text(completion.note).font(.bouba(.subhead))
                 }
                 if let photo = completion.photo {
                     PhotoView(photo: photo)
@@ -176,10 +176,10 @@ private struct VisitRow: View {
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .background(Color.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Text("\(Text(update.by).font(.allo(16, .semibold))) \(update.kind == .arrived ? "arrived" : "left")")
-                .font(.allo(16))
+            Text("\(Text(update.by).font(.bouba(.callout, .semibold))) \(update.kind == .arrived ? "arrived" : "left")")
+                .font(.bouba(.callout))
             Spacer()
-            Text(update.date.timeString).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
+            Text(update.date.timeString).font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
         }
         .padding(.vertical, 4)
     }
@@ -194,12 +194,12 @@ struct UpdateCard: View {
             HStack(spacing: 10) {
                 InitialsAvatar(name: update.by, color: .purple, size: 36)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(update.by).font(.allo(16, .semibold))
-                    Text(update.date.timeString).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                    Text(update.by).font(.bouba(.callout, .semibold))
+                    Text(update.date.timeString).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
                 if let mood = update.mood {
-                    Tag(text: mood, color: .boubaOrangeText, symbol: PetUpdate.moodSymbol(mood))
+                    Tag(text: mood, color: .ink, symbol: PetUpdate.moodSymbol(mood))
                 }
             }
 
@@ -219,7 +219,7 @@ struct UpdateCard: View {
             }
 
             if !update.text.isEmpty {
-                Text(update.text).font(.allo(16))
+                Text(update.text).font(.bouba(.callout))
             }
         }
         .staticCard()
@@ -249,7 +249,7 @@ struct PostUpdateSheet: View {
                                 Image(systemName: "photo.on.rectangle.angled")
                                     .font(.system(size: 34))
                                 Text("Add photos of \(store.pet.name)")
-                                    .font(.allo(16, .semibold))
+                                    .font(.bouba(.callout, .semibold))
                             }
                             .foregroundStyle(Color.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -271,7 +271,7 @@ struct PostUpdateSheet: View {
                     .buttonStyle(PressableStyle())
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("How's \(store.pet.name) doing?").font(.allo(17, .semibold))
+                        Text("How's \(store.pet.name) doing?").font(.bouba(.body, .semibold))
                         FlowLayout {
                             ForEach(PetUpdate.moods, id: \.self) { m in
                                 Chip(label: m, symbol: PetUpdate.moodSymbol(m), isSelected: mood == m) { mood = mood == m ? nil : m }

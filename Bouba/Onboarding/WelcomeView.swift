@@ -24,9 +24,9 @@ struct WelcomeView: View {
 
                 // Title and tagline sit right on top of the button.
                 VStack(spacing: 8) {
-                    Text("Bouba").font(.allo(46, .bold))
+                    Text("Bouba").boubaFont(.display)
                     Text("Everything your pet needs,\nin good hands.")
-                        .font(.alloSubtext(20))
+                        .font(.boubaSecondary(.title3))
                         .foregroundStyle(Color.textSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -39,7 +39,7 @@ struct WelcomeView: View {
                     }
 
                     Text("By continuing you agree to Bouba's Terms & Privacy Policy.")
-                        .font(.alloSubtext(14))
+                        .font(.boubaSecondary(.footnote))
                         .foregroundStyle(Color.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.top, 4)
@@ -150,7 +150,7 @@ struct RoleChoiceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("How will you\nuse Bouba?")
-                .font(.allo(34, .bold))
+                .boubaFont(.largeTitle)
                 .padding(.bottom, 8)
 
             choice(.owner, symbol: "house.fill", title: "I have a pet",
@@ -173,7 +173,7 @@ struct RoleChoiceView: View {
                 store.startAsOwner()
             } label: {
                 Text("Just exploring? Try a sample pet")
-                    .font(.allo(15, .semibold))
+                    .font(.bouba(.subhead, .semibold))
                     .foregroundStyle(Color.textSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -183,7 +183,7 @@ struct RoleChoiceView: View {
         .padding(24)
         .background(OnboardingBackground())
         .navigationBarTitleDisplayMode(.inline)
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: role)
+        .sensoryFeedback(.boubaSelect, trigger: role)
     }
 
     private func choice(_ value: Role, symbol: String, title: String, detail: String) -> some View {
@@ -196,25 +196,25 @@ struct RoleChoiceView: View {
             HStack(alignment: .center, spacing: 16) {
                 Image(systemName: symbol)
                     .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(Color.boubaOrangeText)
+                    .foregroundStyle(Color.boubaOrange)
                     .frame(width: 36)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.allo(19, .semibold)).foregroundStyle(.primary)
-                    Text(detail).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
+                    Text(title).font(.bouba(.title3)).foregroundStyle(.primary)
+                    Text(detail).font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
                         .multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)
                 // Space is kept for the checkmark so the text doesn't reflow when it appears.
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 22))
-                    .foregroundStyle(Color.boubaOrangeText)
+                    .foregroundStyle(Color.boubaOrange)
                     .opacity(isSelected ? 1 : 0)
                     .instantSelection()
             }
             .padding(16)
             .background(Color(.systemBackground), in: shape)
             .overlay {
-                shape.strokeBorder(isSelected ? Color.boubaOrangeText : Color(.systemGray5),
+                shape.strokeBorder(isSelected ? Color.boubaOrange : Color(.systemGray5),
                                    lineWidth: isSelected ? 2 : 1)
             }
             .contentShape(shape)

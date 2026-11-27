@@ -16,9 +16,9 @@ struct MeView: View {
                     HStack(spacing: 14) {
                         InitialsAvatar(name: store.currentUserName, color: store.isOwner ? .boubaOrange : .purple, size: 58)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(store.currentUserName).font(.allo(22, .bold))
+                            Text(store.currentUserName).font(.bouba(.title2))
                             Text(store.isOwner ? "Owner · \(store.pets.count) pets" : "Pet sitter for \(store.pets[0].name)")
-                                .font(.alloSubtext(17))
+                                .font(.boubaSecondary(.body))
                                 .foregroundStyle(Color.textSecondary)
                         }
                     }
@@ -42,11 +42,11 @@ struct MeView: View {
 
                 Section {
                     Toggle("Task reminders", isOn: $remindTasks)
-                        .tint(Color.boubaOrange)
+                        .tint(Color.toggleTint)
                     Toggle("When tasks are completed", isOn: $notifyCompletions)
-                        .tint(Color.boubaOrange)
+                        .tint(Color.toggleTint)
                     Toggle("Photo updates", isOn: $notifyPhotos)
-                        .tint(Color.boubaOrange)
+                        .tint(Color.toggleTint)
                 } header: {
                     header("Notifications")
                 }
@@ -61,19 +61,20 @@ struct MeView: View {
                             HStack(spacing: 16) {
                                 PetAvatar(pet: pet, size: 24)
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(pet.name).font(.allo(16, .semibold))
-                                    Text(pet.subtitle).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                                    Text(pet.name).font(.bouba(.callout, .semibold))
+                                    Text(pet.subtitle).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                                 }
                                 .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                                 Spacer()
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(Color.boubaOrangeText)
+                                    .foregroundStyle(Color.boubaOrange)
                                     .opacity(pet.id == store.selectedPetID ? 1 : 0)
                                     .instantSelection()
                                     .accessibilityHidden(pet.id != store.selectedPetID)
                             }
                         }
                         .tint(Color.primary)
+                        .sensoryFeedback(trigger: store.selectedPetID) { _, new in new == pet.id ? .boubaSelect : nil }
                     }
                     Button("Join a pet with a code", systemImage: "link") { showJoin = true }
                 } header: {
@@ -120,10 +121,10 @@ struct MeView: View {
     }
 
     private func header(_ text: String) -> some View {
-        Text(text).font(.allo(16, .medium))
+        Text(text).formHeaderStyle()
     }
 
     private func footer(_ text: String) -> some View {
-        Text(text).font(.alloSubtext(13))
+        Text(text).formFooterStyle()
     }
 }

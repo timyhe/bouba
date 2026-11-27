@@ -25,15 +25,15 @@ struct PhoneEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("What's your number?").font(.allo(32, .bold))
+                Text("What's your number?").boubaFont(.largeTitle)
                 Text("We'll text you a code to sign in. No passwords to remember.")
-                    .font(.alloSubtext(18))
+                    .font(.boubaSecondary(.body))
                     .foregroundStyle(Color.textSecondary)
             }
 
             HStack(spacing: 10) {
                 Text("🇺🇸 +1")
-                    .font(.allo(20, .semibold))
+                    .font(.bouba(.title3))
                     .fieldStyle()
 
                 // The field holds raw digits (rewriting it while typing drops keystrokes);
@@ -53,7 +53,7 @@ struct PhoneEntryView: View {
                     HStack(spacing: 1) {
                         Text(digits.isEmpty ? "" : Self.format(digits))
                         if focused {
-                            Capsule().fill(Color.boubaOrange).frame(width: 2, height: 24)
+                            Capsule().fill(Color.ink).frame(width: 2, height: 24)
                                 .phaseAnimator([1.0, 0.0]) { view, phase in view.opacity(phase) }
                                     animation: { _ in .easeInOut(duration: 0.5) }
                         }
@@ -63,7 +63,7 @@ struct PhoneEntryView: View {
                     }
                     .allowsHitTesting(false)
                 }
-                .font(.allo(20, .semibold))
+                .font(.bouba(.title3))
                 .contentShape(Rectangle())
                 .onTapGesture { focused = true }
                 .fieldStyle()
@@ -101,9 +101,9 @@ struct VerifyCodeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Enter the code").font(.allo(32, .bold))
+                Text("Enter the code").boubaFont(.largeTitle)
                 Text("Sent to \(phone)")
-                    .font(.alloSubtext(18))
+                    .font(.boubaSecondary(.body))
                     .foregroundStyle(Color.textSecondary)
             }
 
@@ -140,16 +140,16 @@ struct VerifyCodeView: View {
                         secondsLeft = 30
                         code = ""
                     }
-                    .font(.allo(15, .semibold))
+                    .font(.bouba(.subhead, .semibold))
                 }
             }
-            .font(.alloSubtext(17))
+            .font(.boubaSecondary(.body))
 
             Spacer()
 
             // Stays above the keyboard. The code verifies itself once all digits are in,
             // so the button only shows progress and never needs a tap.
-            PrimaryButton(title: verifying ? "Verifying…" : "Continue", isLoading: verifying) {
+            PrimaryButton(title: verifying ? "Verifying…" : "Continue", isLoading: verifying, haptic: nil) {
                 verify()
             }
             .disabled(code.count < length || verifying)
@@ -161,7 +161,8 @@ struct VerifyCodeView: View {
         .onReceive(timer) { _ in
             if secondsLeft > 0 { secondsLeft -= 1 }
         }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: verifying) { _, new in new }
+        // The code submits itself on the last digit, so that moment carries the primary haptic.
+        .sensoryFeedback(trigger: verifying) { _, new in new ? .boubaPrimary : nil }
     }
 
     private func digitBox(_ index: Int) -> some View {
@@ -169,13 +170,13 @@ struct VerifyCodeView: View {
         let char = index < chars.count ? String(chars[index]) : ""
         let isCurrent = focused && index == min(chars.count, length - 1) && !verifying
         return Text(char)
-            .font(.allo(28, .semibold))
+            .boubaFont(.title)
             .frame(maxWidth: .infinity)
             .frame(height: 64)
             .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(isCurrent ? Color.boubaOrange : Color.clear, lineWidth: 2)
+                    .strokeBorder(isCurrent ? Color.ink : Color.clear, lineWidth: 2)
             )
             .animation(.snappy(duration: 0.15), value: code)
     }

@@ -154,7 +154,7 @@ struct CreatePetFlow: View {
             if step == StepID.invite {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Skip") { finish() }
-                        .font(.allo(16, .semibold))
+                        .font(.bouba(.callout, .semibold))
                         .tint(Color.primary)
                 }
             }
@@ -271,9 +271,9 @@ struct CreatePetFlow: View {
 
     private func title(_ text: String, _ subtitle: Text? = nil) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(text).font(.allo(32, .bold))
+            Text(text).boubaFont(.largeTitle)
             if let subtitle {
-                subtitle.font(.alloSubtext(18)).foregroundStyle(Color.textSecondary)
+                subtitle.font(.boubaSecondary(.body)).foregroundStyle(Color.textSecondary)
             }
         }
     }
@@ -290,18 +290,17 @@ struct CreatePetFlow: View {
                         VStack(spacing: 8) {
                             Image(systemName: s.symbol)
                                 .font(.system(size: 38, weight: .semibold))
-                                .foregroundStyle(species == s ? Color.boubaOrangeText : Color.primary)
+                                .foregroundStyle(species == s ? Color.boubaOrange : Color.primary)
                                 .frame(height: 50)
-                            Text(s.label).font(.allo(17, .semibold)).foregroundStyle(.primary)
+                            Text(s.label).font(.bouba(.body, .semibold)).foregroundStyle(.primary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 22)
                         .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        .layeredShadow(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        // Flat with a hairline, like the role cards on the welcome screen.
                         .overlay {
-                            if species == s {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.boubaOrangeText, lineWidth: 2.5)
-                            }
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .strokeBorder(species == s ? Color.boubaOrange : Color(.systemGray5), lineWidth: species == s ? 2.5 : 1)
                         }
                         // Colors and border snap; only the pop below animates.
                         .transaction { $0.animation = nil }
@@ -309,9 +308,9 @@ struct CreatePetFlow: View {
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(species == s ? .isSelected : [])
                     .selectionPop(species == s)
-                    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: species)
                 }
             }
+            .sensoryFeedback(.boubaSelect, trigger: species)
 
             Button { showAIComingSoon = true } label: {
                 HStack(alignment: .top, spacing: 14) {
@@ -321,11 +320,11 @@ struct CreatePetFlow: View {
                         .frame(width: 32)
                         .padding(.top, 2)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Already have care notes?").font(.allo(16, .semibold)).foregroundStyle(.primary)
-                        Text("Import a doc or record an intake call").font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
+                        Text("Already have care notes?").font(.bouba(.callout, .semibold)).foregroundStyle(.primary)
+                        Text("Import a doc or record an intake call").font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
                     }
                     Spacer()
-                    Text("Soon").font(.allo(12, .semibold)).foregroundStyle(.purple)
+                    Text("Soon").font(.bouba(.caption)).foregroundStyle(.purple)
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Color.purple.opacity(0.12), in: Capsule())
                 }
@@ -378,7 +377,7 @@ struct CreatePetFlow: View {
                 .submitLabel(.next)
                 .onSubmit { if !primaryDisabled { advance() } }
                 // Big like the phone number field, since it's the one thing this step asks for.
-                .font(.allo(20, .semibold))
+                .font(.bouba(.title3))
                 .fieldStyle()
                 .id(Field.name)
         }
@@ -386,7 +385,7 @@ struct CreatePetFlow: View {
 
     /// Avatar colors to pick from; orange (index 0) is the default.
     static let avatarColors: [Color] = [
-        .boubaOrange,  // the accent orange
+        .boubaOrange,  // the brand orange
         Color(red: 1.0, green: 0.42, blue: 0.68),   // pink
         Color(red: 0.56, green: 0.40, blue: 0.95),  // purple
         Color(red: 0.20, green: 0.58, blue: 1.0),   // blue
@@ -410,11 +409,12 @@ struct CreatePetFlow: View {
                         )
                 }
                 .buttonStyle(InstantSelectStyle())
-                .sensoryFeedback(.selection, trigger: avatarColor)
                 .accessibilityLabel(["Orange", "Pink", "Purple", "Blue", "Teal", "Green"][i])
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
+        // One haptic for the row; on each swatch it fired once per swatch.
+        .sensoryFeedback(.boubaTick, trigger: avatarColor)
         .frame(maxWidth: .infinity)
     }
 
@@ -423,7 +423,7 @@ struct CreatePetFlow: View {
             title("A little about \(displayName)")
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Breed (optional)").font(.allo(17, .semibold))
+                Text("Breed (optional)").font(.bouba(.body, .semibold))
                 TextField("Goldendoodle", text: $breed)
                     .textInputAutocapitalization(.words)
                     .focused($focusedField, equals: .breed)
@@ -433,7 +433,7 @@ struct CreatePetFlow: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Age").font(.allo(17, .semibold))
+                Text("Age").font(.bouba(.body, .semibold))
                 HStack {
                     Button { if age > 0 { age -= 1 } } label: {
                         Image(systemName: "minus").font(.system(size: 18, weight: .bold)).frame(width: 36, height: 36)
@@ -444,8 +444,8 @@ struct CreatePetFlow: View {
                     .accessibilityLabel("Decrease age")
                     Spacer()
                     VStack(spacing: 0) {
-                        Text("\(age)").font(.allo(44, .bold)).contentTransition(.numericText(value: Double(age)))
-                        Text(age == 1 ? "year" : "years").font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
+                        Text("\(age)").boubaFont(.display).contentTransition(.numericText(value: Double(age)))
+                        Text(age == 1 ? "year" : "years").font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
                     }
                     Spacer()
                     Button { if age < 30 { age += 1 } } label: {
@@ -457,29 +457,28 @@ struct CreatePetFlow: View {
                     .accessibilityLabel("Increase age")
                 }
                 .animation(.snappy, value: age)
-                .sensoryFeedback(.selection, trigger: age)
+                .sensoryFeedback(.boubaTick, trigger: age)
                 .staticCard(padding: 14)
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Size").font(.allo(17, .semibold))
+                Text("Size").font(.bouba(.body, .semibold))
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(PetSize.allCases) { s in
                         Button {
                             size = s
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(s.label).font(.allo(17, .semibold)).foregroundStyle(.primary)
-                                Text(s.detail).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                                Text(s.label).font(.bouba(.body, .semibold)).foregroundStyle(.primary)
+                                Text(s.detail).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(16)
                             .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .layeredShadow(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            // Flat with a hairline, like the role cards on the welcome screen.
                             .overlay {
-                                if size == s {
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.boubaOrangeText, lineWidth: 2.5)
-                                }
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .strokeBorder(size == s ? Color.boubaOrange : Color(.systemGray5), lineWidth: size == s ? 2.5 : 1)
                             }
                             // Colors and border snap; only the pop below animates.
                             .transaction { $0.animation = nil }
@@ -489,7 +488,7 @@ struct CreatePetFlow: View {
                         .selectionPop(size == s)
                     }
                 }
-                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: size)
+                .sensoryFeedback(.boubaSelect, trigger: size)
             }
         }
     }
@@ -510,22 +509,22 @@ struct CreatePetFlow: View {
                                 .opacity(isOn ? 1 : 0.5)
                                 .instantSelection()
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(s.title).font(.allo(16, .semibold)).foregroundStyle(.primary)
+                                Text(s.title).font(.bouba(.callout, .semibold)).foregroundStyle(.primary)
                                 Text([s.timeString, s.amount].filter { !$0.isEmpty }.joined(separator: " · "))
-                                    .font(.alloSubtext(16))
+                                    .font(.boubaSecondary(.callout))
                                     .foregroundStyle(Color.textSecondary)
                             }
                             Spacer()
                             Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
                                 .font(.system(size: 24))
-                                .foregroundStyle(isOn ? Color.boubaOrangeText : Color(.systemGray3))
+                                .foregroundStyle(isOn ? Color.boubaOrange : Color(.systemGray3))
                                 .instantSelection()
                         }
                         .card(padding: 12, radius: 18)
                     }
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(isOn ? .isSelected : [])
-                    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: isOn)
+                    .sensoryFeedback(.boubaSelect, trigger: isOn)
                 }
             }
         }
@@ -541,7 +540,7 @@ struct CreatePetFlow: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("If \(displayName) seems unwell, a caretaker can…").font(.allo(17, .semibold))
+                Text("If \(displayName) seems unwell, a caretaker can…").font(.bouba(.body, .semibold))
                 ForEach(VetPermission.allCases) { p in
                     Button {
                         permission = p
@@ -549,16 +548,16 @@ struct CreatePetFlow: View {
                         HStack(spacing: 14) {
                             Image(systemName: p.symbol)
                                 .font(.system(size: 20))
-                                .foregroundStyle(Color.boubaOrangeText)
+                                .foregroundStyle(Color.boubaOrange)
                                 .frame(width: 30)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(p.label).font(.allo(16, .semibold)).foregroundStyle(.primary)
-                                Text(p.detail).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                                Text(p.label).font(.bouba(.callout, .semibold)).foregroundStyle(.primary)
+                                Text(p.detail).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                             }
                             Spacer()
                             Image(systemName: permission == p ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
-                                .foregroundStyle(permission == p ? Color.boubaOrangeText : Color(.systemGray))
+                                .foregroundStyle(permission == p ? Color.boubaOrange : Color(.systemGray))
                                 .instantSelection()
                         }
                         .card(padding: 14, radius: 18)
@@ -566,7 +565,7 @@ struct CreatePetFlow: View {
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(permission == p ? .isSelected : [])
                 }
-                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: permission)
+                .sensoryFeedback(.boubaSelect, trigger: permission)
             }
         }
     }
@@ -591,16 +590,16 @@ struct CreatePetFlow: View {
                         HStack(spacing: 14) {
                             Image(systemName: role.symbol)
                                 .font(.system(size: 20))
-                                .foregroundStyle(Color.boubaOrangeText)
+                                .foregroundStyle(Color.boubaOrange)
                                 .frame(width: 30)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(role.label).font(.allo(16, .semibold)).foregroundStyle(.primary)
-                                Text(role.detail).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                                Text(role.label).font(.bouba(.callout, .semibold)).foregroundStyle(.primary)
+                                Text(role.detail).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                             }
                             Spacer()
                             Image(systemName: invite.role == role ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 22))
-                                .foregroundStyle(invite.role == role ? Color.boubaOrangeText : Color(.systemGray))
+                                .foregroundStyle(invite.role == role ? Color.boubaOrange : Color(.systemGray))
                                 .instantSelection()
                         }
                         .card(padding: 14, radius: 18)
@@ -608,15 +607,15 @@ struct CreatePetFlow: View {
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(invite.role == role ? .isSelected : [])
                 }
-                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: invite.role)
+                .sensoryFeedback(.boubaSelect, trigger: invite.role)
             }
 
             if invite.role == .temporary {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("How long are they caring for \(displayName)?").font(.allo(17, .semibold))
+                    Text("How long are they caring for \(displayName)?").font(.bouba(.body, .semibold))
                     RangeCalendar(start: $invite.start, end: $invite.end)
                     Text(sitterLength)
-                        .font(.alloSubtext(15))
+                        .font(.boubaSecondary(.subhead))
                         .foregroundStyle(Color.textSecondary)
                 }
                 .transition(.opacity)
@@ -643,17 +642,17 @@ struct CreatePetFlow: View {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("bouba.app/join/\(invite.inviteCode)")
-                        .font(.allo(17, .semibold))
+                        .font(.bouba(.body, .semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Text(invite.role == .temporary ? "\(invite.role.label) · \(invite.accessSummary)" : invite.role.label)
-                        .font(.alloSubtext(15))
+                        .font(.boubaSecondary(.subhead))
                         .foregroundStyle(Color.textSecondary)
                 }
                 Spacer(minLength: 8)
                 Button {
                     UIPasteboard.general.string = invite.inviteURL.absoluteString
-                    linkCopied = true
+                    withAnimation { linkCopied = true }
                 } label: {
                     Image(systemName: linkCopied ? "checkmark" : "doc.on.doc.fill")
                         .font(.system(size: 16, weight: .semibold))
@@ -663,7 +662,7 @@ struct CreatePetFlow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(linkCopied ? "Invite link copied" : "Copy invite link")
-                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: linkCopied)
+                .copiedFeedback($linkCopied)
                 ShareLink(item: invite.inviteURL,
                           subject: Text("Help care for \(displayName)"),
                           message: Text(inviteMessage)) {
@@ -703,7 +702,7 @@ private struct RangeCalendar: View {
         VStack(spacing: 12) {
             HStack {
                 Text(month.formatted(.dateTime.month(.wide).year()))
-                    .font(.allo(17, .semibold))
+                    .font(.bouba(.body, .semibold))
                 Spacer()
                 monthButton("chevron.left", label: "Previous month", offset: -1)
                     .disabled(month <= Date().startOfMonth)
@@ -714,7 +713,7 @@ private struct RangeCalendar: View {
                 LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(weekdaySymbols, id: \.self) { symbol in
                         Text(symbol)
-                            .font(.allo(13, .semibold))
+                            .font(.bouba(.footnote, .semibold))
                             .foregroundStyle(Color.textSecondary)
                             .frame(maxWidth: .infinity)
                             .accessibilityHidden(true)
@@ -735,7 +734,7 @@ private struct RangeCalendar: View {
         .padding(.top, 4)
         .padding(.bottom, 16)
         .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .sensoryFeedback(.selection, trigger: end)
+        .sensoryFeedback(.boubaTick, trigger: [start, end])
     }
 
     private func monthButton(_ symbol: String, label: String, offset: Int) -> some View {
@@ -784,12 +783,15 @@ private struct RangeCalendar: View {
             select(day)
         } label: {
             Text(day.formatted(.dateTime.day()))
-                .font(.allo(16, isEndpoint ? .semibold : .regular))
+                .font(.bouba(.callout, isEndpoint ? .semibold : .regular))
                 .monospacedDigit()
-                .foregroundStyle(isEndpoint ? Color.white : (isPast ? Color(.systemGray3) : Color.primary))
+                .foregroundStyle(isPast ? Color(.systemGray3) : Color.primary)
                 .frame(width: 40, height: 40)
                 .background {
-                    if isEndpoint { Circle().fill(Color.boubaOrangeFill) }
+                    if isEndpoint {
+                        Circle().fill(Color.boubaOrange.opacity(0.18))
+                            .overlay(Circle().strokeBorder(Color.boubaOrange, lineWidth: 2))
+                    }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44)
                 // A band joins the days in between, and runs halfway into each end.
@@ -806,7 +808,7 @@ private struct RangeCalendar: View {
 
     @ViewBuilder
     private func rangeBand(isStart: Bool, isEnd: Bool, inRange: Bool) -> some View {
-        let band = Color.boubaOrange.opacity(0.15)
+        let band = Color.boubaOrange.opacity(0.12)
         let hasRange = !calendar.isDate(start, inSameDayAs: end)
         if inRange {
             band.frame(height: 40)

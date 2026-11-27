@@ -19,7 +19,7 @@ struct CardStyle: ViewModifier {
                 .background(Color(.systemBackground), in: shape)
                 .layeredShadow(shape)
         } else {
-            padded.background(Color.fieldFill, in: shape)
+            padded.background(Color.staticCardFill, in: shape)
         }
     }
 }
@@ -140,6 +140,8 @@ struct PrimaryButton: View {
     var systemImage: String? = nil
     /// Shows a spinner beside the title. Pair it with `.disabled` so the button can't be tapped twice.
     var isLoading = false
+    /// The tap's haptic. Pass nil when the result decides the haptic instead (success or error).
+    var haptic: SensoryFeedback? = .boubaPrimary
     var action: () -> Void
 
     @State private var taps = 0
@@ -160,14 +162,15 @@ struct PrimaryButton: View {
                 }
                 Text(title)
             }
-            .font(.allo(19, .semibold))
+            .font(.bouba(.title3))
+            .foregroundStyle(Color.onInk)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         }
         .buttonStyle(.glassProminent)
-        .tint(Color.boubaOrangeFill)
+        .tint(Color.ink)
         .controlSize(.large)
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: taps)
+        .sensoryFeedback(trigger: taps) { _, _ in haptic }
     }
 }
 
@@ -279,7 +282,9 @@ struct Chip: View {
     let label: String
     var symbol: String? = nil
     var isSelected: Bool
-    var tint: Color = .boubaOrangeFill
+    var tint: Color = .boubaOrange
+    /// Text and icon color once selected: a darker shade of the tint so it stays readable.
+    var selectedText: Color = .boubaOrangeText
     var action: () -> Void
 
     var body: some View {
@@ -288,15 +293,16 @@ struct Chip: View {
                 if let symbol { Image(systemName: symbol) }
                 Text(label)
             }
-            .font(.allo(15, .medium))
+            .font(.bouba(.subhead, .semibold))
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
-            .background(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(Color.fieldFill), in: Capsule())
+            .foregroundStyle(isSelected ? selectedText : Color.primary)
+            .background(isSelected ? AnyShapeStyle(tint.opacity(0.14)) : AnyShapeStyle(Color.fieldFill), in: Capsule())
+            .overlay { if isSelected { Capsule().strokeBorder(tint, lineWidth: 1.5) } }
         }
         .buttonStyle(PressableStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: isSelected)
+        .sensoryFeedback(.boubaSelect, trigger: isSelected)
     }
 }
 
@@ -310,7 +316,7 @@ struct Tag: View {
             if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .bold)) }
             Text(text)
         }
-        .font(.allo(14, .medium))
+        .font(.bouba(.footnote, .semibold))
         .foregroundStyle(color)
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -322,7 +328,7 @@ struct StatusBadge: View {
     let status: CaretakerStatus
     var body: some View {
         Text(status.label)
-            .font(.allo(12, .semibold))
+            .font(.bouba(.caption))
             .foregroundStyle(status.color)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -343,7 +349,7 @@ struct SectionHeader<Trailing: View>: View {
 
     var body: some View {
         HStack {
-            Text(title).font(.allo(21, .bold))
+            Text(title).font(.bouba(.title2))
                 .accessibilityAddTraits(.isHeader)
             Spacer()
             trailing
@@ -391,7 +397,7 @@ struct InfoCard<Content: View, Accessory: View>: View {
                     .foregroundStyle(.white)
                     .frame(width: InfoCardMetrics.iconColumn, height: InfoCardMetrics.iconColumn)
                     .background(tint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                Text(title).font(.allo(18, .semibold))
+                Text(title).font(.bouba(.title3))
                 Spacer(minLength: 0)
                 accessory
             }
@@ -424,9 +430,9 @@ struct KeyValueRow: View {
                 .foregroundStyle(Color.textSecondary)
                 .frame(width: InfoCardMetrics.iconColumn, height: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(.alloSubtext(15)).foregroundStyle(Color.textSecondary)
+                Text(label).font(.boubaSecondary(.subhead)).foregroundStyle(Color.textSecondary)
                 Text(secret && !revealed ? String(repeating: "•", count: max(value.count, 4)) : value)
-                    .font(.allo(16, .medium))
+                    .font(.bouba(.callout, .semibold))
                     .textSelection(.enabled)
             }
             Spacer(minLength: 8)
@@ -462,7 +468,7 @@ struct KeyValueRow: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel(copied ? "Copied \(label)" : "Copy \(label)")
                 .foregroundStyle(Color.textSecondary)
-                .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: copied)
+                .copiedFeedback($copied)
             }
     }
 }
@@ -472,40 +478,46 @@ struct KeyValueRow: View {
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
+    /// Breaks subviews into rows that fit `maxWidth`. Sizing and placement both use this, so
+    /// they always agree on where rows break (they used to differ by sub-point rounding, which
+    /// pushed the last item onto a row the container hadn't made room for).
+    private func rows(_ subviews: Subviews, maxWidth: CGFloat) -> [[(index: Int, size: CGSize)]] {
+        var rows: [[(index: Int, size: CGSize)]] = [[]]
         var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var width: CGFloat = 0
-        for subview in subviews {
+        for (i, subview) in subviews.enumerated() {
             let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > maxWidth, x > 0 {
+            // A half-point of slack absorbs pixel rounding of the bounds.
+            if x > 0, x + size.width > maxWidth + 0.5 {
+                rows.append([])
                 x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
             }
+            rows[rows.count - 1].append((i, size))
             x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-            width = max(width, x - spacing)
         }
-        return CGSize(width: width, height: y + rowHeight)
+        return rows
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(subviews, maxWidth: proposal.width ?? .infinity)
+        let width = rows.map { row in
+            row.reduce(0) { $0 + $1.size.width } + spacing * CGFloat(max(row.count - 1, 0))
+        }.max() ?? 0
+        let heights = rows.map { $0.map(\.size.height).max() ?? 0 }
+        let height = heights.reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX
+        // Wrap against the same width that sizing used, not the (narrower) width it returned.
         var y = bounds.minY
-        var rowHeight: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > bounds.maxX, x > bounds.minX {
-                x = bounds.minX
-                y += rowHeight + spacing
-                rowHeight = 0
+        for row in rows(subviews, maxWidth: proposal.width ?? bounds.width) {
+            var x = bounds.minX
+            let rowHeight = row.map(\.size.height).max() ?? 0
+            for item in row {
+                subviews[item.index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(item.size))
+                x += item.size.width + spacing
             }
-            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
+            y += rowHeight + spacing
         }
     }
 }
@@ -521,16 +533,20 @@ func telURL(_ phone: String) -> URL? {
 /// SwiftUI version of the CSS shadow
 /// `0 0 0 1px #0000000f, 0 1px 2px -1px #0000000f, 0 2px 4px 0 #0000000a`.
 /// CSS blur is twice the Gaussian sigma, so blur 4px → radius 2; a negative spread insets the shape.
+/// In dark mode a black shadow and ring vanish against the black page, so the ring turns
+/// white (like the system's dark-mode hairlines) and the shadow deepens to read on gray surfaces.
 struct LayeredShadow<S: InsettableShape>: ViewModifier {
     let shape: S
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
+        let dark = colorScheme == .dark
         content.background {
             ZStack {
-                shape.fill(.black.opacity(0.04)).offset(y: 2).blur(radius: 2)
-                shape.inset(by: 1).fill(.black.opacity(0.06)).offset(y: 1).blur(radius: 1)
+                shape.fill(.black.opacity(dark ? 0.4 : 0.04)).offset(y: 2).blur(radius: 2)
+                shape.inset(by: 1).fill(.black.opacity(dark ? 0.5 : 0.06)).offset(y: 1).blur(radius: 1)
                 // 1px spread with no blur: a hairline ring just outside the edge.
-                shape.inset(by: -0.5).stroke(.black.opacity(0.06), lineWidth: 1)
+                shape.inset(by: -0.5).stroke(dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06), lineWidth: 1)
             }
         }
     }
@@ -549,4 +565,60 @@ extension View {
     func solidSheet() -> some View {
         presentationBackground(Color(.systemBackground))
     }
+}
+
+// MARK: - Form sections
+
+extension View {
+    /// Section header text in forms and lists: Allo instead of the system's small gray caps.
+    func formHeaderStyle() -> some View {
+        font(.bouba(.callout, .semibold)).textCase(nil)
+    }
+
+    /// Section footer text in forms and lists.
+    func formFooterStyle() -> some View {
+        font(.boubaSecondary(.footnote))
+    }
+}
+
+/// A form section header set in Allo.
+struct FormHeader: View {
+    let title: String
+    var body: some View { Text(title).formHeaderStyle() }
+}
+
+extension Section where Parent == FormHeader, Footer == EmptyView, Content: View {
+    /// A form section with a plain-string header set in Allo.
+    init(styledHeader title: String, @ViewBuilder content: () -> Content) {
+        self.init(content: content, header: { FormHeader(title: title) })
+    }
+}
+
+extension View {
+    /// For copy buttons: a soft tap when copying, then the checkmark turns back into the
+    /// copy icon after a moment so the button can be used again.
+    func copiedFeedback(_ copied: Binding<Bool>) -> some View {
+        self
+            .sensoryFeedback(trigger: copied.wrappedValue) { _, new in new ? .boubaTick : nil }
+            .task(id: copied.wrappedValue) {
+                guard copied.wrappedValue else { return }
+                guard (try? await Task.sleep(for: .seconds(1.5))) != nil else { return }
+                withAnimation { copied.wrappedValue = false }
+            }
+    }
+}
+
+// MARK: - Haptics
+
+/// The app's haptic tiers. Every one is a soft impact; weight says how much the action matters.
+/// Text links, Back/Skip/Cancel, menus, typing and anything that opens a system sheet get none.
+extension SensoryFeedback {
+    /// The primary button: moving forward, committing, finishing.
+    static let boubaPrimary = SensoryFeedback.impact(flexibility: .soft, intensity: 1.0)
+    /// Something didn't go through, like a bad invite code.
+    static let boubaError = SensoryFeedback.impact(flexibility: .soft, intensity: 0.85)
+    /// Picking an option: a role, species, size, chip or toggle.
+    static let boubaSelect = SensoryFeedback.impact(flexibility: .soft, intensity: 0.6)
+    /// Small adjustments and confirmations: steppers, swatches, calendar days, copying.
+    static let boubaTick = SensoryFeedback.impact(flexibility: .soft, intensity: 0.4)
 }

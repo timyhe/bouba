@@ -40,7 +40,7 @@ struct RootView: View {
                 MeetThePetView(onFinish: { store.showingMeet = false })
             }
         }
-        .font(.allo(17))
+        .font(.bouba(.body))
         // Allo is built at a fixed size per text-size setting, so rebuild the tree when it changes.
         .id(dynamicTypeSize)
     }

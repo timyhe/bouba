@@ -19,9 +19,9 @@ struct EmergencySheet: View {
                             .frame(width: 58, height: 58)
                             .background(Color.red, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Emergency info").font(.allo(26, .bold))
+                            Text("Emergency info").boubaFont(.title)
                             Text("If something's wrong with \(pet.name)")
-                                .font(.alloSubtext(17))
+                                .font(.boubaSecondary(.body))
                                 .foregroundStyle(Color.textSecondary)
                         }
                     }
@@ -33,11 +33,12 @@ struct EmergencySheet: View {
                         HStack(alignment: .top, spacing: 12) {
                             Image(systemName: pet.vet.permission.symbol)
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(Color.boubaGreenText)
+                                .foregroundStyle(Color.onGreenTint)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(pet.vet.permission.label).font(.allo(16, .semibold))
-                                Text(pet.vet.permission.detail).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
+                                Text(pet.vet.permission.label).font(.bouba(.callout, .semibold))
+                                Text(pet.vet.permission.detail).font(.boubaSecondary(.callout))
                             }
+                            .foregroundStyle(Color.onGreenTint)
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -46,7 +47,7 @@ struct EmergencySheet: View {
                         if let url = telURL(pet.vet.phone), !pet.vet.phone.isEmpty {
                             Link(destination: url) {
                                 Label("Call \(pet.vet.phone)", systemImage: "phone.fill")
-                                    .font(.allo(19, .semibold))
+                                    .font(.bouba(.title3))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 6)
                             }
@@ -62,9 +63,9 @@ struct EmergencySheet: View {
                                 HStack(spacing: 12) {
                                     InitialsAvatar(name: contact.name, color: .boubaOrange, size: 40)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(contact.name).font(.allo(16, .semibold))
+                                        Text(contact.name).font(.bouba(.callout, .semibold))
                                         Text("\(contact.relation) · \(contact.phone)")
-                                            .font(.alloSubtext(16))
+                                            .font(.boubaSecondary(.callout))
                                             .foregroundStyle(Color.textSecondary)
                                     }
                                     Spacer()
@@ -86,7 +87,7 @@ struct EmergencySheet: View {
 
                     if !pet.medical.isEmpty {
                         InfoCard(title: "Medical notes", symbol: "heart.text.square.fill", tint: .red) {
-                            Text(pet.medical).font(.allo(16))
+                            Text(pet.medical).font(.bouba(.callout))
                         }
                     }
 
@@ -122,21 +123,28 @@ struct NotificationsSheet: View {
                     ContentUnavailableView("You're all caught up", systemImage: "bell.slash")
                 } else {
                     List(store.notifications) { n in
-                        HStack(alignment: .top, spacing: 12) {
+                        // Action icon and avatar side by side; the text sits under the avatar.
+                        HStack(alignment: .top, spacing: 10) {
                             Image(systemName: n.symbol)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 38, height: 38)
-                                .background(n.color, in: Circle())
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(n.title).font(.allo(16, .semibold))
-                                Text(n.body).font(.alloSubtext(16)).foregroundStyle(Color.textSecondary)
-                                Text("\(n.date.relativeDay) · \(n.date.timeString)")
-                                    .font(.alloSubtext(15))
-                                    .foregroundStyle(Color.textSecondary)
+                                .foregroundStyle(n.color)
+                                .frame(width: 36, height: 36)
+                                .background(n.color.opacity(0.14), in: Circle())
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let actor = n.actor {
+                                    InitialsAvatar(name: actor, color: n.actorColor, size: 36)
+                                        .accessibilityHidden(true)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(Text(n.title).font(.bouba(.callout, .semibold))) \(Text(n.date.shortAgo).font(.boubaSecondary(.callout)).foregroundStyle(Color.textTertiary))")
+                                        .accessibilityLabel("\(n.title), \(n.date.relativeDay) at \(n.date.timeString)")
+                                    Text(n.body).font(.boubaSecondary(.callout)).foregroundStyle(Color.textSecondary)
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                         // No line above the first notification, right under the title.
                         .listRowSeparator(n.id == store.notifications.first?.id ? .hidden : .automatic, edges: .top)
                     }
@@ -152,6 +160,6 @@ struct NotificationsSheet: View {
             }
             .onAppear { store.hasUnreadNotifications = false }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 }
