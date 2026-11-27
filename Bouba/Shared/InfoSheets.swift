@@ -26,7 +26,7 @@ struct EmergencySheet: View {
                         }
                     }
 
-                    InfoCard(title: pet.vet.clinic.isEmpty ? "Vet" : pet.vet.clinic, symbol: "cross.case.fill", tint: .red) {
+                    InfoCard(title: pet.vet.clinic.isEmpty ? "Vet" : pet.vet.clinic) {
                         if !pet.vet.address.isEmpty {
                             KeyValueRow(symbol: "mappin.and.ellipse", label: "Address", value: pet.vet.address, copyable: true)
                         }
@@ -58,7 +58,7 @@ struct EmergencySheet: View {
                     }
 
                     if !pet.contacts.isEmpty {
-                        InfoCard(title: "Emergency contacts", symbol: "phone.fill", tint: .red) {
+                        InfoCard(title: "Emergency contacts") {
                             ForEach(pet.contacts) { contact in
                                 HStack(spacing: 12) {
                                     InitialsAvatar(name: contact.name, color: .boubaOrange, size: 40)
@@ -86,13 +86,13 @@ struct EmergencySheet: View {
                     }
 
                     if !pet.medical.isEmpty {
-                        InfoCard(title: "Medical notes", symbol: "heart.text.square.fill", tint: .red) {
+                        InfoCard(title: "Medical notes") {
                             Text(pet.medical).font(.bouba(.callout))
                         }
                     }
 
                     if !pet.mustNotEat.isEmpty {
-                        InfoCard(title: "Must not eat", symbol: "nosign", tint: .red) {
+                        InfoCard(title: "Must not eat") {
                             FlowLayout {
                                 ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .dangerText, symbol: "xmark") }
                             }

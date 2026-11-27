@@ -15,29 +15,27 @@ struct PetProfileView: View {
 
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 24) {
                     header(pet)
 
-                    InfoCard(title: "About \(pet.name)", symbol: "heart.fill", tint: .pink) {
-                        KeyValueRow(symbol: "birthday.cake", label: "Age", value: "\(pet.age) year\(pet.age == 1 ? "" : "s") old")
-                        KeyValueRow(symbol: "ruler", label: "Size", value: pet.size.label)
-                        KeyValueRow(symbol: pet.species.symbol, label: "Species", value: pet.species.label)
-                        ForEach(pet.notes) { note in
-                            KeyValueRow(symbol: note.symbol, label: note.title, value: note.body)
+                    if !pet.notes.isEmpty {
+                        InfoCard(title: "About \(pet.name)") {
+                            ForEach(pet.notes) { note in
+                                KeyValueRow(symbol: note.symbol, label: note.title, value: note.body)
+                            }
                         }
                     }
 
                     if !pet.mustNotEat.isEmpty {
-                        InfoCard(title: "Must not eat", symbol: "nosign", tint: .red) {
+                        InfoCard(title: "Must not eat") {
                             FlowLayout {
                                 ForEach(pet.mustNotEat, id: \.self) { Tag(text: $0, color: .dangerText, symbol: "xmark") }
                             }
-                            .padding(.leading, InfoCardMetrics.textInset)
                         }
                     }
 
                     if store.isOwner || accessForCaretaker(pet) {
-                        InfoCard(title: "Getting in", symbol: "key.fill", tint: .blue) {
+                        InfoCard(title: "Getting in") {
                             if !pet.home.address.isEmpty {
                                 KeyValueRow(symbol: "mappin.and.ellipse", label: "Address", value: pet.home.address, copyable: true)
                             }
@@ -59,7 +57,7 @@ struct PetProfileView: View {
                         }
                     }
 
-                    InfoCard(title: "Vet & emergency", symbol: "cross.case.fill", tint: .red) {
+                    InfoCard(title: "Vet & emergency") {
                         if !pet.vet.clinic.isEmpty {
                             KeyValueRow(symbol: "stethoscope", label: "Vet", value: pet.vet.clinic)
                         }
@@ -77,25 +75,15 @@ struct PetProfileView: View {
                     } else {
                         Button { showMeet = true } label: {
                             Label("Replay \u{201C}Meet \(pet.name)\u{201D}", systemImage: "rectangle.stack.fill")
-                                .font(.bouba(.callout, .semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 4)
                         }
-                        .buttonStyle(.glass)
-                        .controlSize(.large)
+                        .buttonStyle(CardButtonStyle())
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 12)
                 .padding(.bottom, 40)
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if store.isOwner {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button { showEdit = true } label: { Text("Edit").font(.bouba(.body, .medium)) }
-                    }
-                }
-            }
+                    .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showEdit) { EditPetSheet(pet: pet).solidSheet() }
             .sheet(isPresented: $showInvite) { InviteCaretakerSheet().solidSheet() }
             .sheet(item: $editingCaretaker) { c in InviteCaretakerSheet(existing: c).solidSheet() }
@@ -109,21 +97,74 @@ struct PetProfileView: View {
         pet.caretakers.first { $0.name == store.sitterName }?.showHomeAccess ?? true
     }
 
+    /// A card with name, breed and two basics on the left and the photo on the right.
     private func header(_ pet: Pet) -> some View {
-        VStack(spacing: 12) {
-            PetAvatar(pet: pet, size: 116)
-            VStack(spacing: 4) {
-                Text(pet.name).boubaFont(.largeTitle)
-                Text(pet.breed.isEmpty ? pet.species.label : pet.breed)
-                    .font(.boubaSecondary(.body))
-                    .foregroundStyle(Color.textSecondary)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pet.name).boubaFont(.title2)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(pet.breed.isEmpty ? pet.species.label : pet.breed)
+                        .font(.boubaSecondary(.body))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                // Side by side when they fit beside the photo, stacked when they don't
+                // (larger text sizes).
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { pills(pet) }
+                    VStack(alignment: .leading, spacing: 8) { pills(pet) }
+                }
             }
+            Spacer(minLength: 0)
+            avatar(pet)
         }
-        .padding(.vertical, 8)
+        .card(padding: 20)
+    }
+
+    @ViewBuilder private func pills(_ pet: Pet) -> some View {
+        basic("birthday.cake.fill", "\(pet.age) year\(pet.age == 1 ? "" : "s") old", label: "Age")
+        basic("ruler.fill", "Size \(pet.size.short)", label: "Size \(pet.size.label)")
+    }
+
+    /// The photo, with a small gray pencil badge in the corner for owners.
+    private func avatar(_ pet: Pet) -> some View {
+        PetAvatar(pet: pet, size: 76, ring: false)
+            .overlay(alignment: .bottomTrailing) {
+                if store.isOwner {
+                    Button { showEdit = true } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.primary)
+                            .frame(width: 34, height: 34)
+                            .background(Color.fieldFill, in: Circle())
+                            .overlay(Circle().strokeBorder(Color(.systemBackground), lineWidth: 3))
+                            // A 44pt tap target around the 34pt badge.
+                            .frame(width: 44, height: 44)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 10, y: 8)
+                    .accessibilityLabel("Edit \(pet.name)'s photo and details")
+                }
+            }
+    }
+
+    /// A small gray pill: icon plus value, e.g. a cake and "8 years old".
+    private func basic(_ symbol: String, _ text: String, label: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
+            Text(text).font(.bouba(.subhead, .medium))
+        }
+        .fixedSize()
+        .padding(.horizontal, 10)
+        .frame(minHeight: 34)
+        .background(Color.fieldFill, in: Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label == "Age" ? text : label)
     }
 
     private func caretakersCard(_ pet: Pet) -> some View {
-        InfoCard(title: "Care team", symbol: "person.2.fill", tint: .purple) {
+        InfoCard(title: "Care team") {
             HStack(spacing: InfoCardMetrics.gap) {
                 InitialsAvatar(name: store.ownerName, color: .boubaOrange, size: InfoCardMetrics.iconColumn)
                 VStack(alignment: .leading, spacing: 2) {
@@ -152,14 +193,20 @@ struct PetProfileView: View {
                 }
                 .buttonStyle(.plain)
             }
-        } accessory: {
+            Divider()
             Button { showInvite = true } label: {
-                Label("Invite", systemImage: "plus")
-                    .font(.bouba(.footnote, .semibold))
+                HStack(spacing: InfoCardMetrics.gap) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.primary)
+                        .frame(width: InfoCardMetrics.iconColumn, height: InfoCardMetrics.iconColumn)
+                        .background(Color.fieldFill, in: Circle())
+                    Text("Invite someone new").font(.bouba(.callout, .semibold))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.glass)
-            .controlSize(.small)
-            .accessibilityLabel("Invite a caretaker")
+            .buttonStyle(.plain)
         }
     }
 }

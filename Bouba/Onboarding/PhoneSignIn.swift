@@ -45,10 +45,15 @@ struct PhoneEntryView: View {
                         .focused($focused)
                         .foregroundStyle(.clear)
                         .tint(.clear)
-                        .onChange(of: text) { _, newValue in
+                        .onChange(of: text) { oldValue, newValue in
                             // Only rewrite on overflow, so normal typing is never interrupted.
-                            let clean = String(newValue.filter(\.isNumber).prefix(10))
-                            if newValue.count > 10 || clean.count != newValue.count { text = clean }
+                            let all = newValue.filter(\.isNumber)
+                            // Autofill or paste drops in a whole number at once, often with its
+                            // country code ("+1 (555) 555-5555"). The +1 sits beside the field, so keep
+                            // the last 10 digits. Typed one at a time, an 11th digit is just ignored.
+                            let pasted = newValue.count - oldValue.count > 1
+                            let clean = String(pasted && all.count > 10 ? all.suffix(10) : all.prefix(10))
+                            if clean != newValue { text = clean }
                         }
                     HStack(spacing: 1) {
                         Text(digits.isEmpty ? "" : Self.format(digits))
@@ -162,7 +167,7 @@ struct VerifyCodeView: View {
             if secondsLeft > 0 { secondsLeft -= 1 }
         }
         // The code submits itself on the last digit, so that moment carries the primary haptic.
-        .sensoryFeedback(trigger: verifying) { _, new in new ? .boubaPrimary : nil }
+        .boubaFeedback(trigger: verifying) { _, new in new ? .boubaPrimary : nil }
     }
 
     private func digitBox(_ index: Int) -> some View {

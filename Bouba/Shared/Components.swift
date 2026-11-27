@@ -2,37 +2,31 @@ import SwiftUI
 import UIKit
 
 // MARK: - Card container
-// Tappable cards are white with a layered shadow; static (non-tappable) cards are flat light gray.
+// Every card is white with a thin outline and no shadow.
 
 struct CardStyle: ViewModifier {
     var padding: CGFloat = 16
     var radius: CGFloat = 24
-    var interactive: Bool = true
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let padded = content
+        content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-        if interactive {
-            padded
-                .background(Color(.systemBackground), in: shape)
-                .layeredShadow(shape)
-        } else {
-            padded.background(Color.staticCardFill, in: shape)
-        }
+            .background(Color(.systemBackground), in: shape)
+            .cardOutline(shape)
     }
 }
 
 extension View {
-    /// White card with a layered shadow, for cards you can tap.
+    /// White card with a thin outline.
     func card(padding: CGFloat = 16, radius: CGFloat = 24) -> some View {
         modifier(CardStyle(padding: padding, radius: radius))
     }
 
-    /// Flat light-gray card, for content that isn't tappable.
+    /// Same white outlined card, for content that isn't tappable.
     func staticCard(padding: CGFloat = 16, radius: CGFloat = 24) -> some View {
-        modifier(CardStyle(padding: padding, radius: radius, interactive: false))
+        modifier(CardStyle(padding: padding, radius: radius))
     }
 
     /// Rounded gray input field style used across forms outside of `Form`.
@@ -141,22 +135,20 @@ struct PrimaryButton: View {
     /// Shows a spinner beside the title. Pair it with `.disabled` so the button can't be tapped twice.
     var isLoading = false
     /// The tap's haptic. Pass nil when the result decides the haptic instead (success or error).
-    var haptic: SensoryFeedback? = .boubaPrimary
+    var haptic: BoubaHaptic? = .boubaPrimary
     var action: () -> Void
-
-    @State private var taps = 0
 
     var body: some View {
         Button {
-            taps += 1
+            if let haptic { Haptics.play(haptic) }
             action()
         } label: {
             HStack(spacing: 8) {
                 if isLoading {
-                    // Small and gray to match the disabled label beside it.
+                    // Same color as the label beside it, so it reads on the gray disabled fill.
                     ProgressView()
                         .controlSize(.small)
-                        .tint(Color(.systemGray))
+                        .tint(Color.onInk)
                 } else if let systemImage {
                     Image(systemName: systemImage)
                 }
@@ -170,7 +162,11 @@ struct PrimaryButton: View {
         .buttonStyle(.glassProminent)
         .tint(Color.ink)
         .controlSize(.large)
-        .sensoryFeedback(trigger: taps) { _, _ in haptic }
+        // While loading it's busy, not unavailable: keep the dark fill so the spinner reads,
+        // and block taps instead of graying the button out.
+        .transformEnvironment(\.isEnabled) { if isLoading { $0 = true } }
+        .allowsHitTesting(!isLoading)
+        .onAppear { Haptics.prepare() }
     }
 }
 
@@ -192,6 +188,8 @@ struct IconTile: View {
 struct PetAvatar: View {
     let pet: Pet
     var size: CGFloat = 56
+    /// The faint white ring around the photo.
+    var ring = true
 
     var body: some View {
         ZStack {
@@ -208,7 +206,7 @@ struct PetAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: size > 60 ? 3 : 1.5))
+        .overlay { if ring { Circle().strokeBorder(.white.opacity(0.7), lineWidth: size > 60 ? 3 : 1.5) } }
     }
 }
 
@@ -302,7 +300,7 @@ struct Chip: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .sensoryFeedback(.boubaSelect, trigger: isSelected)
+        .boubaFeedback(.boubaSelect, trigger: isSelected)
     }
 }
 
@@ -374,42 +372,36 @@ enum InfoCardMetrics {
     static var textInset: CGFloat { iconColumn + gap }
 }
 
+/// A titled card: the title sits above the card as a heading, with an optional control beside it.
 struct InfoCard<Content: View, Accessory: View>: View {
     let title: String
-    let symbol: String
-    var tint: Color = .boubaOrange
     @ViewBuilder var content: Content
-    /// Optional control pinned to the trailing edge of the header.
+    /// Optional control pinned to the trailing edge of the title.
     @ViewBuilder var accessory: Accessory
 
-    init(title: String, symbol: String, tint: Color = .boubaOrange,
-         @ViewBuilder content: () -> Content,
-         @ViewBuilder accessory: () -> Accessory) {
-        self.title = title; self.symbol = symbol; self.tint = tint
+    init(title: String, @ViewBuilder content: () -> Content, @ViewBuilder accessory: () -> Accessory) {
+        self.title = title
         self.content = content(); self.accessory = accessory()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: InfoCardMetrics.gap) {
-                Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: InfoCardMetrics.iconColumn, height: InfoCardMetrics.iconColumn)
-                    .background(tint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
                 Text(title).font(.bouba(.title3))
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 0)
                 accessory
             }
-            content
+            .padding(.horizontal, 4)
+            VStack(alignment: .leading, spacing: 14) { content }
+                .card(padding: 18)
         }
-        .staticCard(padding: 18)
     }
 }
 
 extension InfoCard where Accessory == EmptyView {
-    init(title: String, symbol: String, tint: Color = .boubaOrange, @ViewBuilder content: () -> Content) {
-        self.init(title: title, symbol: symbol, tint: tint, content: content, accessory: { EmptyView() })
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.init(title: title, content: content, accessory: { EmptyView() })
     }
 }
 
@@ -528,13 +520,31 @@ func telURL(_ phone: String) -> URL? {
     URL(string: "tel:\(phone.filter(\.isNumber))")
 }
 
-// MARK: - Layered shadow
+// MARK: - Card outline
 
-/// SwiftUI version of the CSS shadow
-/// `0 0 0 1px #0000000f, 0 1px 2px -1px #0000000f, 0 2px 4px 0 #0000000a`.
-/// CSS blur is twice the Gaussian sigma, so blur 4px → radius 2; a negative spread insets the shape.
-/// In dark mode a black shadow and ring vanish against the black page, so the ring turns
-/// white (like the system's dark-mode hairlines) and the shadow deepens to read on gray surfaces.
+/// The hairline around cards and the week strip's selected tile: no shadow, just a 1pt edge
+/// drawn inside the shape. In dark mode a black line vanishes against the black page, so it
+/// turns white, like the system's dark-mode hairlines.
+struct CardOutline<S: InsettableShape>: ViewModifier {
+    let shape: S
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            shape.strokeBorder(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.1), lineWidth: 1)
+        }
+    }
+}
+
+extension View {
+    func cardOutline<S: InsettableShape>(_ shape: S) -> some View {
+        modifier(CardOutline(shape: shape))
+    }
+}
+
+/// White surface lifted by a soft two-layer shadow and a hairline ring, for the Activity
+/// screen's task cards and selected date. Everywhere else, cards are flat with an outline.
+/// In dark mode the ring turns white and the shadow deepens so it still reads on black.
 struct LayeredShadow<S: InsettableShape>: ViewModifier {
     let shape: S
     @Environment(\.colorScheme) private var colorScheme
@@ -599,7 +609,7 @@ extension View {
     /// copy icon after a moment so the button can be used again.
     func copiedFeedback(_ copied: Binding<Bool>) -> some View {
         self
-            .sensoryFeedback(trigger: copied.wrappedValue) { _, new in new ? .boubaTick : nil }
+            .boubaFeedback(trigger: copied.wrappedValue) { _, new in new ? .boubaTick : nil }
             .task(id: copied.wrappedValue) {
                 guard copied.wrappedValue else { return }
                 guard (try? await Task.sleep(for: .seconds(1.5))) != nil else { return }
@@ -612,13 +622,46 @@ extension View {
 
 /// The app's haptic tiers. Every one is a soft impact; weight says how much the action matters.
 /// Text links, Back/Skip/Cancel, menus, typing and anything that opens a system sheet get none.
-extension SensoryFeedback {
+struct BoubaHaptic: Equatable {
+    let intensity: CGFloat
+
     /// The primary button: moving forward, committing, finishing.
-    static let boubaPrimary = SensoryFeedback.impact(flexibility: .soft, intensity: 1.0)
+    static let boubaPrimary = BoubaHaptic(intensity: 1.0)
     /// Something didn't go through, like a bad invite code.
-    static let boubaError = SensoryFeedback.impact(flexibility: .soft, intensity: 0.85)
+    static let boubaError = BoubaHaptic(intensity: 0.9)
     /// Picking an option: a role, species, size, chip or toggle.
-    static let boubaSelect = SensoryFeedback.impact(flexibility: .soft, intensity: 0.6)
+    static let boubaSelect = BoubaHaptic(intensity: 0.75)
     /// Small adjustments and confirmations: steppers, swatches, calendar days, copying.
-    static let boubaTick = SensoryFeedback.impact(flexibility: .soft, intensity: 0.4)
+    static let boubaTick = BoubaHaptic(intensity: 0.6)
+}
+
+/// Plays haptics through one soft generator that stays prepared, so the Taptic Engine is awake
+/// and each one fires the moment its value changes. SwiftUI's `.sensoryFeedback` waits for the
+/// next render and lets the engine sleep, so taps that also navigate sometimes lost theirs.
+@MainActor
+enum Haptics {
+    private static let generator = UIImpactFeedbackGenerator(style: .soft)
+
+    static func prepare() { generator.prepare() }
+
+    static func play(_ haptic: BoubaHaptic) {
+        generator.impactOccurred(intensity: haptic.intensity)
+        generator.prepare()
+    }
+}
+
+extension View {
+    /// Plays a haptic whenever `trigger` changes.
+    func boubaFeedback<T: Equatable>(_ haptic: BoubaHaptic, trigger: T) -> some View {
+        onAppear { Haptics.prepare() }
+            .onChange(of: trigger) { Haptics.play(haptic) }
+    }
+
+    /// Plays the haptic the closure picks for a change of `trigger`, or none for nil.
+    func boubaFeedback<T: Equatable>(trigger: T, _ haptic: @escaping (T, T) -> BoubaHaptic?) -> some View {
+        onAppear { Haptics.prepare() }
+            .onChange(of: trigger) { old, new in
+                if let haptic = haptic(old, new) { Haptics.play(haptic) }
+            }
+    }
 }

@@ -30,6 +30,8 @@ final class AppStore {
     var notifications: [AppNotification]
     var hasUnreadNotifications = true
     var checkedInAt: Date? = nil
+    /// The pet just created, so Activity can welcome it with a celebratory toast once.
+    var newlyAddedPetID: UUID?
 
     let ownerName = "Brian"
     let ownerPhoto: String? = "avatar-brian"
@@ -123,10 +125,6 @@ final class AppStore {
         modifyPet { $0.tasks.removeAll { $0.id == id } }
     }
 
-    func moveTasks(from source: IndexSet, to destination: Int) {
-        modifyPet { $0.tasks.move(fromOffsets: source, toOffset: destination) }
-    }
-
     func post(_ update: PetUpdate) {
         modifyPet { $0.updates.append(update) }
         if !isOwner {
@@ -172,6 +170,7 @@ final class AppStore {
         pets.append(pet)
         selectedPetID = pet.id
         selectedDate = Date().startOfDay
+        newlyAddedPetID = pet.id
     }
 
     func joinAsCaretaker() {

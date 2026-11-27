@@ -226,7 +226,7 @@ struct TaskEditorSheet: View {
                         }
                     }
                     .padding(.vertical, 6)
-                    .sensoryFeedback(.boubaSelect, trigger: task.kind)
+                    .boubaFeedback(.boubaSelect, trigger: task.kind)
                 }
 
                 Section(styledHeader: "Details") {

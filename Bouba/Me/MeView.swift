@@ -12,6 +12,8 @@ struct MeView: View {
 
         NavigationStack {
             List {
+              // White page with gray rows, instead of the default gray page with white rows.
+              Group {
                 Section {
                     HStack(spacing: 14) {
                         InitialsAvatar(name: store.currentUserName, color: store.isOwner ? .boubaOrange : .purple, size: 58)
@@ -74,7 +76,7 @@ struct MeView: View {
                             }
                         }
                         .tint(Color.primary)
-                        .sensoryFeedback(trigger: store.selectedPetID) { _, new in new == pet.id ? .boubaSelect : nil }
+                        .boubaFeedback(trigger: store.selectedPetID) { _, new in new == pet.id ? .boubaSelect : nil }
                     }
                     Button("Join a pet with a code", systemImage: "link") { showJoin = true }
                 } header: {
@@ -104,7 +106,11 @@ struct MeView: View {
                             .foregroundStyle(Color.red)
                     }
                 }
+              }
+              .listRowBackground(Color.fieldFill)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemBackground))
             .navigationTitle("Me")
             .sheet(isPresented: $showJoin) {
                 NavigationStack {

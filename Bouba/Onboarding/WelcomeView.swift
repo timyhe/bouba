@@ -183,7 +183,7 @@ struct RoleChoiceView: View {
         .padding(24)
         .background(OnboardingBackground())
         .navigationBarTitleDisplayMode(.inline)
-        .sensoryFeedback(.boubaSelect, trigger: role)
+        .boubaFeedback(.boubaSelect, trigger: role)
     }
 
     private func choice(_ value: Role, symbol: String, title: String, detail: String) -> some View {

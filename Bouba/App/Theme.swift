@@ -213,8 +213,6 @@ extension ShapeStyle where Self == Color {
     }
     /// Gray fill for inputs: text fields, photo pickers, the date calendar.
     static var fieldFill: Color { Color(.systemGray6) }
-    /// Fill for cards you can't tap: lighter than input fields so read-only content sits back.
-    static var staticCardFill: Color { adaptive(light: (247, 247, 249), dark: (28, 28, 30)) }
 }
 
 // MARK: - Dates

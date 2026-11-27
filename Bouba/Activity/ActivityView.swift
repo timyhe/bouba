@@ -16,12 +16,13 @@ struct ActivityView: View {
     @State private var showEmergency = false
     @State private var showNotifications = false
     /// The task being dragged to a new spot, so its card can dim in place.
-    @State private var draggingTask: UUID?
     @State private var showPostUpdate = false
     @State private var showAddPet = false
     @State private var detailTask: CareTask?
     @State private var newTask: CareTask?
     @State private var toast: CompletionToast?
+    /// True while the new-pet toast is on screen.
+    @State private var showWelcome = false
     @State private var detailsFor: CompletionToast?
     /// Task cards currently on screen, so the Next task pill knows when the next one is out of view.
     @State private var visibleTasks: Set<UUID> = []
@@ -29,6 +30,8 @@ struct ActivityView: View {
     @State private var dayDrag: CGFloat = 0
     /// True once a drag passes the point where letting go changes the date.
     @State private var swipeArmed = false
+    /// True while a day swipe is under the finger, so the card it started on doesn't also take a tap.
+    @State private var swiping = false
     @State private var todayTaps = 0
 
     var body: some View {
@@ -64,6 +67,7 @@ struct ActivityView: View {
                 .padding(.bottom, 40)
             }
             .scrollIndicators(.hidden)
+            .environment(\.isSwipingDays, swiping)
             // Swipe left or right anywhere on the page, cards and blank space alike, to move to the next or previous date.
             // The day follows the finger; past the threshold it ticks once, and letting go
             // there (or flicking) changes the date, otherwise it springs back.
@@ -71,6 +75,7 @@ struct ActivityView: View {
             // scroll the page (a SwiftUI DragGesture here swallowed them).
             .gesture(HorizontalSwipe(
                 onChanged: { dx in
+                    if !swiping { swiping = true }
                     if neighborDay(for: dx) == nil {
                         // No day that way: resist, and never arm.
                         dayDrag = dx * 0.25
@@ -82,14 +87,19 @@ struct ActivityView: View {
                 },
                 onEnded: { dx, speed in
                     let flick = abs(dx) > 20 && abs(speed) > 600 && (dx < 0) == (speed < 0)
-                    if let next = neighborDay(for: dx), abs(dx) > Self.swipeThreshold || flick {
-                        // The new day pushes in while the drag offset settles back to zero.
-                        store.selectDate(next)
-                    }
+                    let next = neighborDay(for: dx).flatMap { abs(dx) > Self.swipeThreshold || flick ? $0 : nil }
                     withAnimation(.spring(duration: 0.35, bounce: 0)) { dayDrag = 0 }
                     swipeArmed = false
+                    // Change the date just after the gesture callback, not inside it. A change made
+                    // mid-callback could reach the day's content but not the week strip until the
+                    // next change, so one swipe looked lost and the next jumped two days.
+                    // Taps that land as the finger lifts still see `swiping` and are ignored.
+                    DispatchQueue.main.async {
+                        if let next { store.selectDate(next) }
+                        swiping = false
+                    }
                 }))
-            .sensoryFeedback(trigger: swipeArmed) { _, armed in armed ? .boubaSelect : nil }
+            .boubaFeedback(trigger: swipeArmed) { _, armed in armed ? .boubaSelect : nil }
             .background(Color(.systemBackground))
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .bottom) {
@@ -97,18 +107,35 @@ struct ActivityView: View {
                     backToTodayButton
                     nextTaskButton(proxy: proxy)
                     toastOverlay
+                    welcomeToast
                 }
                 .padding(.bottom, 10)
                 .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.35, bounce: 0),
                            value: Calendar.current.isDateInToday(store.selectedDate))
                 .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.35, bounce: 0),
                            value: showsNextTaskPill)
+                .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0),
+                           value: welcomePet?.id)
             }
           }
             // The toast carries an action, so it stays until dismissed or the day changes.
             .onChange(of: store.selectedDate) { toast = nil }
             // Completing a task is the app's main action. Only on completion, not when the toast goes away.
-            .sensoryFeedback(trigger: toast) { _, new in new == nil ? nil : .boubaPrimary }
+            .boubaFeedback(trigger: toast) { _, new in new == nil ? nil : .boubaPrimary }
+            // A new pet is a big moment: celebrate it once, then let it go on its own.
+            .boubaFeedback(trigger: welcomePet?.id) { _, new in new == nil ? nil : .boubaPrimary }
+            // The store holds the new pet until the toast has had its moment, so a remount
+            // during the onboarding transition just restarts the timer instead of losing it.
+            .task(id: store.newlyAddedPetID) {
+                guard store.newlyAddedPetID != nil else { showWelcome = false; return }
+                // Let the sheet or the onboarding modal finish sliding away first.
+                try? await Task.sleep(for: .seconds(0.6))
+                guard !Task.isCancelled else { return }
+                showWelcome = true
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                store.newlyAddedPetID = nil
+            }
             .sheet(isPresented: $showEmergency) { EmergencySheet().solidSheet() }
             .sheet(isPresented: $showNotifications) { NotificationsSheet().solidSheet() }
             .sheet(isPresented: $showPostUpdate) { PostUpdateSheet().solidSheet() }
@@ -209,58 +236,24 @@ struct ActivityView: View {
 
     // MARK: Tasks
 
-    /// Tasks two to a row, in the owner's order. Owners long-press a card and drag it to reorder.
+    /// Tasks two to a row, in the owner's order.
     private func taskGrid(_ tasks: [CareTask]) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             ForEach(tasks) { task in
-                trackedCard(task, in: tasks)
+                trackedCard(task)
             }
             if store.isOwner {
                 addTaskButton
             }
         }
-        // A drop that lands between cards still ends the drag.
-        .onDrop(of: [.text], isTargeted: nil) { _ in
-            draggingTask = nil
-            return true
-        }
     }
 
     /// Tracks which cards are on screen for the Next task pill.
-    private func trackedCard(_ task: CareTask, in tasks: [CareTask]) -> some View {
-        Group {
-            if store.isOwner {
-                reorderableCard(task, in: tasks)
-            } else {
-                taskCard(task)
-            }
-        }
-        .id(task.id)
-        .onScrollVisibilityChange(threshold: 0.5) { visible in
-            if visible { visibleTasks.insert(task.id) } else { visibleTasks.remove(task.id) }
-        }
-    }
-
-    private func reorderableCard(_ task: CareTask, in tasks: [CareTask]) -> some View {
-        let index = tasks.firstIndex { $0.id == task.id } ?? 0
-        return taskCard(task)
-            .opacity(draggingTask == task.id ? 0.4 : 1)
-            .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .onDrag {
-                draggingTask = task.id
-                return NSItemProvider(object: task.id.uuidString as NSString)
-            }
-            .onDrop(of: [.text], delegate: TaskDropDelegate(target: task.id, dragging: $draggingTask) { from, to in
-                withAnimation(.snappy) { store.moveTasks(from: IndexSet(integer: from), to: to > from ? to + 1 : to) }
-            } indexOf: { id in store.pet.tasks.firstIndex { $0.id == id } })
-            // VoiceOver can't drag, so the same moves are offered as actions.
-            .accessibilityAction(named: "Move earlier") {
-                guard index > 0 else { return }
-                withAnimation(.snappy) { store.moveTasks(from: IndexSet(integer: index), to: index - 1) }
-            }
-            .accessibilityAction(named: "Move later") {
-                guard index < tasks.count - 1 else { return }
-                withAnimation(.snappy) { store.moveTasks(from: IndexSet(integer: index), to: index + 2) }
+    private func trackedCard(_ task: CareTask) -> some View {
+        taskCard(task)
+            .id(task.id)
+            .onScrollVisibilityChange(threshold: 0.5) { visible in
+                if visible { visibleTasks.insert(task.id) } else { visibleTasks.remove(task.id) }
             }
     }
 
@@ -398,7 +391,7 @@ struct ActivityView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .capsule)
-            .sensoryFeedback(.boubaSelect, trigger: todayTaps)
+            .boubaFeedback(.boubaSelect, trigger: todayTaps)
             .transition(reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
         }
     }
@@ -444,6 +437,101 @@ struct ActivityView: View {
     }
 }
 
+extension ActivityView {
+    // MARK: Welcome toast
+
+    /// The pet just created, once its toast is due.
+    private var welcomePet: Pet? {
+        guard showWelcome, let id = store.newlyAddedPetID else { return nil }
+        return store.pets.first { $0.id == id }
+    }
+
+    @ViewBuilder var welcomeToast: some View {
+        if let pet = welcomePet {
+            HStack(spacing: 12) {
+                PetAvatar(pet: pet, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Welcome, \(pet.name)! 🎉")
+                        .font(.bouba(.callout, .semibold))
+                        .lineLimit(1)
+                    Text(welcomeDetail(for: pet))
+                        .font(.boubaSecondary(.footnote))
+                        .foregroundStyle(Color.textSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Button {
+                    store.newlyAddedPetID = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Dismiss")
+            }
+            .padding(.leading, 8)
+            .padding(.trailing, 2)
+            .padding(.vertical, 8)
+            .glassEffect(.regular, in: .capsule)
+            .background { if !reduceMotion { ConfettiBurst() } }
+            .padding(.horizontal, 16)
+            .accessibilityElement(children: .combine)
+            .transition(reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
+        }
+    }
+
+    private func welcomeDetail(for pet: Pet) -> String {
+        switch pet.tasks.count {
+        case 0: "Add a task to start the routine"
+        case 1: "1 task is ready for today"
+        default: "\(pet.tasks.count) tasks are ready for today"
+        }
+    }
+}
+
+/// A one-shot burst of confetti from behind the welcome toast.
+private struct ConfettiBurst: View {
+    private struct Piece {
+        let angle: Double, distance: CGFloat, size: CGFloat, spin: Double, color: Color, isCircle: Bool
+    }
+
+    private static let colors: [Color] = [.boubaOrange, .boubaGreen, .yellow, .pink, .blue, .purple]
+    private let pieces: [Piece] = (0..<28).map { i in
+        Piece(angle: Double.random(in: -170 ... -10),
+              distance: .random(in: 70...170),
+              size: .random(in: 5...9),
+              spin: .random(in: -360...360),
+              color: colors[i % colors.count],
+              isCircle: i.isMultiple(of: 3))
+    }
+    @State private var burst = false
+
+    var body: some View {
+        ZStack {
+            ForEach(pieces.indices, id: \.self) { i in
+                let p = pieces[i]
+                let r = p.angle * .pi / 180
+                Group {
+                    if p.isCircle { Circle().fill(p.color) }
+                    else { RoundedRectangle(cornerRadius: 1.5).fill(p.color).frame(width: p.size * 0.6) }
+                }
+                .frame(width: p.size, height: p.size)
+                .rotationEffect(.degrees(burst ? p.spin : 0))
+                .offset(x: burst ? cos(r) * p.distance * 1.4 : 0,
+                        y: burst ? sin(r) * p.distance + 40 : 0)
+                .opacity(burst ? 0 : 1)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.4)) { burst = true }
+        }
+    }
+}
+
 // MARK: - Task card
 
 /// One task: icon, title, a single status line, and a full-width action.
@@ -455,14 +543,20 @@ struct TaskCard: View {
     var onOpen: () -> Void
 
     @State private var confirmUndo = false
+    @Environment(\.isSwipingDays) private var isSwiping
 
     private var completion: Completion? { task.completion(on: date) }
+
+    /// Runs a tap unless it's the end of a day swipe that started on this card.
+    private func tap(_ action: @escaping () -> Void) -> () -> Void {
+        { if !isSwiping { action() } }
+    }
     private var isFuture: Bool { date.startOfDay > Date().startOfDay }
     private var isLate: Bool { !isFuture && task.isLate(on: date) }
 
     var body: some View {
         // The whole card opens the task; the info and action buttons inside take their own taps.
-        Button(action: onOpen) { content }
+        Button(action: tap(onOpen)) { content }
             .buttonStyle(CardPressStyle())
             .confirmationDialog("Mark \(task.title) as not done?", isPresented: $confirmUndo, titleVisibility: .visible) {
                 Button("Mark as not done", role: .destructive, action: onUndo)
@@ -476,7 +570,7 @@ struct TaskCard: View {
             HStack(alignment: .top) {
                 IconTile(kind: task.kind, size: 40)
                 Spacer(minLength: 4)
-                Button(action: onOpen) {
+                Button(action: tap(onOpen)) {
                     Image(systemName: "info.circle.fill")
                         .font(.system(size: 18))
                         .foregroundStyle(Color(.systemGray4))
@@ -518,13 +612,13 @@ struct TaskCard: View {
 
     @ViewBuilder private var actionButton: some View {
         if completion != nil {
-            Button { confirmUndo = true } label: {
+            Button(action: tap { confirmUndo = true }) {
                 Label("Completed", systemImage: "checkmark.circle.fill")
             }
             .buttonStyle(CardButtonStyle(isDone: true))
             .accessibilityLabel("Completed. Tap to undo")
         } else if !isFuture {
-            Button("Complete", action: onComplete)
+            Button("Complete", action: tap(onComplete))
                 .buttonStyle(CardButtonStyle())
                 .accessibilityLabel("Complete \(task.title)")
         }
@@ -535,8 +629,14 @@ struct TaskCard: View {
 
 extension View {
     func outlinedCard(padding: CGFloat = 16, radius: CGFloat = 28) -> some View {
-        // Same white, bordered card as everywhere else, with a rounder corner for the Activity grid.
-        card(padding: padding, radius: radius)
+        // Task cards keep the lifted look: white with a soft shadow, unlike the flat outlined
+        // cards elsewhere.
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground), in: shape)
+            .layeredShadow(shape)
     }
 }
 
@@ -581,7 +681,6 @@ enum TimelineMetrics {
 struct WeekStrip: View {
     @Environment(AppStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var selection
     @State private var scrolledDay: Date?
     /// Days currently on screen, so a swipe to an off-screen day scrolls it into view.
     @State private var visibleDays: Set<Date> = []
@@ -596,8 +695,7 @@ struct WeekStrip: View {
                 ForEach(days, id: \.self) { day in
                     DayCell(day: day,
                             isSelected: Calendar.current.isDate(day, inSameDayAs: store.selectedDate),
-                            carers: carers(on: day),
-                            selection: selection)
+                            carers: carers(on: day))
                         .onTapGesture {
                             if !Calendar.current.isDate(day, inSameDayAs: store.selectedDate) { taps += 1 }
                             store.selectDate(day)
@@ -607,8 +705,14 @@ struct WeekStrip: View {
                         }
                 }
             }
-            // The selected tile slides to the new date.
-            .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0), value: store.selectedDate)
+            // One tile that slides behind the row to the selected date. Only the tile animates: it is
+            // always on screen and only its position changes, so a second swipe mid-slide just
+            // retargets it. The days' own styling switches instantly (animating it could strand a
+            // half-updated day on device when changes overlapped).
+            .background(alignment: .topLeading) {
+                selectionTile
+                    .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0), value: store.selectedDate)
+            }
             .scrollTargetLayout()
             .padding(.vertical, 6)
         }
@@ -620,7 +724,7 @@ struct WeekStrip: View {
             if scrolledDay == nil { scrolledDay = Date().startOfDay }
         }
         // Taps tick here; Back to today and the day swipe play their own.
-        .sensoryFeedback(.boubaSelect, trigger: taps)
+        .boubaFeedback(.boubaSelect, trigger: taps)
         // "Back to today" brings today back into view too.
         .onChange(of: store.selectedDate) { _, day in
             if Calendar.current.isDateInToday(day) {
@@ -632,6 +736,19 @@ struct WeekStrip: View {
         }
     }
 
+
+    private var selectionTile: some View {
+        let index = days.firstIndex { Calendar.current.isDate($0, inSameDayAs: store.selectedDate) }
+        let count = carers(on: store.selectedDate).count
+        let shape = DayTileShape(bumpWidth: count > 0 ? DayCell.pileWidth(count: count) + 4 : 0,
+                                 bumpHeight: DayCell.pileHeight + 4)
+        return shape
+            .fill(Color(.systemBackground))
+            .layeredShadow(shape)
+            .frame(width: DayCell.width, height: DayCell.tileHeight)
+            .offset(x: CGFloat(index ?? 0) * (DayCell.width + 8), y: DayCell.pileHeight / 2)
+            .opacity(index == nil ? 0 : 1)
+    }
 }
 
 /// Someone shown under a date in the week strip.
@@ -661,32 +778,24 @@ private struct DayCell: View {
     let isSelected: Bool
     /// Who's caring that day, shown as small avatars under the date.
     var carers: [DayCarer]
-    /// Shared with the other cells so the selected tile slides between dates.
-    let selection: Namespace.ID
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let avatarSize: CGFloat = 16
-
-    /// The avatars rise out of the date as they appear and sink back into it as they leave.
-    private var pileTransition: AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        return .asymmetric(
-            insertion: .offset(y: 8).combined(with: .scale(scale: 0.9, anchor: .bottom)).combined(with: .opacity),
-            removal: .offset(y: 6).combined(with: .opacity))
-    }
+    static let width: CGFloat = TimelineMetrics.railWidth + 6
+    static let tileHeight: CGFloat = 76
 
     /// Only the selected day shows who's caring.
     private var showsPile: Bool { !carers.isEmpty && isSelected }
     /// Width of the overlapping facepile, ring included.
-    private var pileWidth: CGFloat {
-        let n = CGFloat(carers.count)
+    static func pileWidth(count: Int) -> CGFloat {
+        let n = CGFloat(count)
         return n * pileHeight - max(n - 1, 0) * pileOverlap
     }
 
     /// The facepile's height including its ring; half of it sits above the tile's top edge.
-    private var pileHeight: CGFloat { avatarSize + 3 }
-    private let pileOverlap: CGFloat = 4
+    static let pileHeight: CGFloat = 16 + 3
+    private static let pileOverlap: CGFloat = 4
+    private var pileHeight: CGFloat { Self.pileHeight }
+    private var pileOverlap: CGFloat { Self.pileOverlap }
 
     var body: some View {
         // Allo's line height leaves a big gap between lines, so pull the date up.
@@ -700,27 +809,18 @@ private struct DayCell: View {
         }
         // Nudge the text down a touch so it clears the avatars sitting on the top edge.
         .offset(y: 2)
-        .frame(width: TimelineMetrics.railWidth + 6, height: 76)
-        .background {
-            if isSelected {
-                // The tile grows a bump around the avatars so they read as part of the card, under one shadow.
-                let shape = DayTileShape(bumpWidth: showsPile ? pileWidth + 4 : 0, bumpHeight: pileHeight + 4)
-                shape
-                    .fill(Color(.systemBackground))
-                    .layeredShadow(shape)
-                    .matchedGeometryEffect(id: "selectedDay", in: selection)
-            }
-        }
-        // The facepile sits centered on the tile's top edge.
+        .frame(width: Self.width, height: Self.tileHeight)
+        // The facepile sits centered on the tile's top edge (the tile itself is drawn by the strip,
+        // with a bump around the avatars so they read as part of it).
         .overlay(alignment: .top) {
             if showsPile {
-                facepile
-                    .offset(y: -pileHeight / 2)
-                    .transition(pileTransition)
+                facepile.offset(y: -pileHeight / 2)
             }
         }
         .padding(.top, pileHeight / 2)
         .contentShape(Rectangle())
+        // Selection styling never animates; the strip's sliding tile carries the motion.
+        .transaction(value: isSelected) { $0.animation = nil }
     }
 
     // Overlapping facepile; each face gets a ring in the tile's color so they read as separate.
@@ -762,25 +862,10 @@ private struct DayTileShape: InsettableShape {
     }
 }
 
-/// Moves the dragged task into the spot of whichever card it passes over.
-private struct TaskDropDelegate: DropDelegate {
-    let target: UUID
-    @Binding var dragging: UUID?
-    let move: (_ from: Int, _ to: Int) -> Void
-    let indexOf: (UUID) -> Int?
 
-    func dropEntered(info: DropInfo) {
-        guard let dragging, dragging != target,
-              let from = indexOf(dragging), let to = indexOf(target) else { return }
-        move(from, to)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dragging = nil
-        return true
-    }
+extension EnvironmentValues {
+    /// True while the Activity page's day swipe is under the finger; cards ignore taps meanwhile.
+    @Entry var isSwipingDays = false
 }
 
 /// A horizontal swipe that never competes with vertical scrolling: it declines to start unless the
@@ -829,11 +914,13 @@ struct HorizontalSwipe: UIGestureRecognizerRepresentable {
             return true
         }
 
-        // Only the page's own vertical scroll runs alongside the swipe. Taps on cards and buttons
-        // don't, so once a swipe starts they're cancelled instead of firing when the finger lifts.
+        // The page's vertical scroll runs alongside the swipe. So do the cards and buttons on the
+        // page: they show their press right away (otherwise they'd claim the touch and the swipe
+        // would never start), and ignore their tap while a swipe is under way (isSwipingDays).
         func gestureRecognizer(_ recognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            other.view is UIScrollView && other is UIPanGestureRecognizer
+            if other.view is UIScrollView { return other is UIPanGestureRecognizer }
+            return other.view?.isDescendant(of: recognizer.view ?? UIView()) == true
         }
     }
 }

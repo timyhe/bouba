@@ -70,7 +70,7 @@ struct JoinInviteView: View {
             }
             .disabled(code.isEmpty)
             // Joining feels like any primary step; a bad code gets the error haptic instead, never both.
-            .sensoryFeedback(trigger: joinAttempts) { _, _ in invalid ? .boubaError : .boubaPrimary }
+            .boubaFeedback(trigger: joinAttempts) { _, _ in invalid ? .boubaError : .boubaPrimary }
         }
         .padding(24)
         .background(OnboardingBackground())
@@ -148,7 +148,7 @@ struct MeetThePetView: View {
                 Text("Meet \(pet.name)").font(.bouba(.body, .semibold))
             }
         }
-        .sensoryFeedback(trigger: pastThreshold) { _, crossed in crossed ? .boubaSelect : nil }
+        .boubaFeedback(trigger: pastThreshold) { _, crossed in crossed ? .boubaSelect : nil }
     }
 
     // MARK: Stack
@@ -328,6 +328,6 @@ private struct MeetCard<Content: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
         .clipShape(shape)
-        .layeredShadow(shape)
+        .cardOutline(shape)
     }
 }

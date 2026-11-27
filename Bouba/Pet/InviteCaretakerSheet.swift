@@ -87,7 +87,7 @@ struct InviteCaretakerSheet: View {
                     }
                     .buttonStyle(.plain)
                     // Only the row that becomes selected plays it, so a change gives one haptic.
-                    .sensoryFeedback(trigger: draft.role) { _, new in new == role ? .boubaSelect : nil }
+                    .boubaFeedback(trigger: draft.role) { _, new in new == role ? .boubaSelect : nil }
                 }
             }
 

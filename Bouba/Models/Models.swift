@@ -34,6 +34,15 @@ enum PetSize: String, CaseIterable, Identifiable {
         case .extraLarge: return "XL"
         }
     }
+    /// One- or two-letter size, as in "Size M".
+    var short: String {
+        switch self {
+        case .small: return "S"
+        case .medium: return "M"
+        case .large: return "L"
+        case .extraLarge: return "XL"
+        }
+    }
     var detail: String {
         switch self {
         case .small: return "Under 20 lb"

@@ -207,7 +207,17 @@ struct CreatePetFlow: View {
             inviteCreated = true
         }
         if step < totalSteps - 1 {
-            go(to: step + 1)
+            if focusedField != nil {
+                // Let the keyboard slide away first so the next page doesn't arrive under it.
+                focusedField = nil
+                let next = step + 1
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(0.3))
+                    if step == next - 1 { go(to: next) }
+                }
+            } else {
+                go(to: step + 1)
+            }
         } else {
             finish()
         }
@@ -310,7 +320,7 @@ struct CreatePetFlow: View {
                     .selectionPop(species == s)
                 }
             }
-            .sensoryFeedback(.boubaSelect, trigger: species)
+            .boubaFeedback(.boubaSelect, trigger: species)
 
             Button { showAIComingSoon = true } label: {
                 HStack(alignment: .top, spacing: 14) {
@@ -414,7 +424,7 @@ struct CreatePetFlow: View {
             }
         }
         // One haptic for the row; on each swatch it fired once per swatch.
-        .sensoryFeedback(.boubaTick, trigger: avatarColor)
+        .boubaFeedback(.boubaTick, trigger: avatarColor)
         .frame(maxWidth: .infinity)
     }
 
@@ -457,7 +467,7 @@ struct CreatePetFlow: View {
                     .accessibilityLabel("Increase age")
                 }
                 .animation(.snappy, value: age)
-                .sensoryFeedback(.boubaTick, trigger: age)
+                .boubaFeedback(.boubaTick, trigger: age)
                 .staticCard(padding: 14)
             }
 
@@ -488,7 +498,7 @@ struct CreatePetFlow: View {
                         .selectionPop(size == s)
                     }
                 }
-                .sensoryFeedback(.boubaSelect, trigger: size)
+                .boubaFeedback(.boubaSelect, trigger: size)
             }
         }
     }
@@ -524,7 +534,7 @@ struct CreatePetFlow: View {
                     }
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(isOn ? .isSelected : [])
-                    .sensoryFeedback(.boubaSelect, trigger: isOn)
+                    .boubaFeedback(.boubaSelect, trigger: isOn)
                 }
             }
         }
@@ -565,7 +575,7 @@ struct CreatePetFlow: View {
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(permission == p ? .isSelected : [])
                 }
-                .sensoryFeedback(.boubaSelect, trigger: permission)
+                .boubaFeedback(.boubaSelect, trigger: permission)
             }
         }
     }
@@ -607,7 +617,7 @@ struct CreatePetFlow: View {
                     .buttonStyle(InstantSelectStyle())
                     .accessibilityAddTraits(invite.role == role ? .isSelected : [])
                 }
-                .sensoryFeedback(.boubaSelect, trigger: invite.role)
+                .boubaFeedback(.boubaSelect, trigger: invite.role)
             }
 
             if invite.role == .temporary {
@@ -734,7 +744,7 @@ private struct RangeCalendar: View {
         .padding(.top, 4)
         .padding(.bottom, 16)
         .background(Color.fieldFill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .sensoryFeedback(.boubaTick, trigger: [start, end])
+        .boubaFeedback(.boubaTick, trigger: [start, end])
     }
 
     private func monthButton(_ symbol: String, label: String, offset: Int) -> some View {
